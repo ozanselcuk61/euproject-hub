@@ -2,17 +2,17 @@
    EUProject Hub — Main Application
    ==================================== */
 
-let appInitialized = false;
+var appInitialized = false;
 
 // ---- App Initialization ----
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
     initFirebase();
     setupAuthListener();
 });
 
-window.addEventListener('hashchange', () => {
+window.addEventListener('hashchange', function() {
     if (window.location.hash.startsWith('#page-')) {
-        const page = window.location.hash.replace('#page-', '');
+        var page = window.location.hash.replace('#page-', '');
         navigateTo(page);
     }
 });
@@ -21,7 +21,7 @@ window.addEventListener('hashchange', () => {
 function showAuth(mode) {
     document.getElementById('authPage').classList.remove('hidden');
     document.getElementById('appLayout').classList.add('hidden');
-    const errorEl = document.getElementById('authError');
+    var errorEl = document.getElementById('authError');
     if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
     if (mode === 'register') {
@@ -40,17 +40,17 @@ function showAuth(mode) {
         document.getElementById('authToggle').textContent = 'Sign up free';
     }
 
-    document.getElementById('authToggle').onclick = (e) => {
+    document.getElementById('authToggle').onclick = function(e) {
         e.preventDefault();
         showAuth(mode === 'login' ? 'register' : 'login');
     };
 
     // Login form handler
-    document.getElementById('loginForm').onsubmit = async (e) => {
+    document.getElementById('loginForm').onsubmit = function(e) {
         e.preventDefault();
-        const form = e.target;
-        const email = form.querySelector('input[type="email"]').value;
-        const password = form.querySelector('input[type="password"]').value;
+        var form = e.target;
+        var email = form.querySelector('input[type="email"]').value;
+        var password = form.querySelector('input[type="password"]').value;
 
         if (!email || !password) {
             showAuthError('Please fill in all fields.');
@@ -58,26 +58,26 @@ function showAuth(mode) {
         }
 
         form.classList.add('auth-loading');
-        const result = await loginWithEmail(email, password);
-        form.classList.remove('auth-loading');
-
-        if (!result.success) {
-            showAuthError(result.error);
-        } else {
-            showToast('Welcome back!', 'success');
-        }
+        loginWithEmail(email, password).then(function(result) {
+            form.classList.remove('auth-loading');
+            if (!result.success) {
+                showAuthError(result.error);
+            } else {
+                showToast('Welcome back!', 'success');
+            }
+        });
     };
 
     // Register form handler
-    document.getElementById('registerForm').onsubmit = async (e) => {
+    document.getElementById('registerForm').onsubmit = function(e) {
         e.preventDefault();
-        const form = e.target;
-        const inputs = form.querySelectorAll('.form-input');
-        const firstName = inputs[0].value;
-        const lastName = inputs[1].value;
-        const email = inputs[2].value;
-        const organization = inputs[3].value;
-        const password = inputs[4].value;
+        var form = e.target;
+        var inputs = form.querySelectorAll('.form-input');
+        var firstName = inputs[0].value;
+        var lastName = inputs[1].value;
+        var email = inputs[2].value;
+        var organization = inputs[3].value;
+        var password = inputs[4].value;
 
         if (!firstName || !lastName || !email || !password) {
             showAuthError('Please fill in all required fields.');
@@ -90,37 +90,30 @@ function showAuth(mode) {
         }
 
         form.classList.add('auth-loading');
-        const result = await registerWithEmail(email, password, firstName, lastName, organization);
-        form.classList.remove('auth-loading');
-
-        if (!result.success) {
-            showAuthError(result.error);
-        } else {
-            showToast('Account created! Welcome to EUProject Hub.', 'success');
-        }
+        registerWithEmail(email, password, firstName, lastName, organization).then(function(result) {
+            form.classList.remove('auth-loading');
+            if (!result.success) {
+                showAuthError(result.error);
+            } else {
+                showToast('Account created! Welcome to EUProject Hub.', 'success');
+            }
+        });
     };
 }
 
 // Google login handler
-async function handleGoogleLogin() {
-    const btn = document.getElementById('googleSignIn');
+function handleGoogleLogin() {
+    var btn = document.getElementById('googleSignIn');
     btn.classList.add('auth-loading');
-    const result = await loginWithGoogle();
-    btn.classList.remove('auth-loading');
-
-    if (!result.success) {
-        showAuthError(result.error);
-    } else {
-        showToast('Signed in with Google!', 'success');
-    }
-}
-
-function showAuthError(message) {
-    const errorEl = document.getElementById('authError');
-    if (errorEl) {
-        errorEl.textContent = message;
-        errorEl.style.display = 'block';
-    }
+    loginWithGoogle().then(function(result) {
+        btn.classList.remove('auth-loading');
+        if (result && !result.success) {
+            showAuthError(result.error);
+        }
+    }).catch(function(err) {
+        btn.classList.remove('auth-loading');
+        console.error('Google login error:', err);
+    });
 }
 
 // ---- Show App ----
@@ -140,28 +133,28 @@ function showApp() {
     if (!window.location.hash.startsWith('#page-')) {
         window.location.hash = '#page-dashboard';
     }
-    const page = window.location.hash.replace('#page-', '') || 'dashboard';
+    var page = window.location.hash.replace('#page-', '') || 'dashboard';
     navigateTo(page);
 }
 
 // ---- Sidebar ----
 function setupSidebar() {
-    document.querySelectorAll('.sidebar-link').forEach(link => {
-        link.addEventListener('click', () => {
-            const page = link.dataset.page;
+    document.querySelectorAll('.sidebar-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            var page = link.dataset.page;
             navigateTo(page);
         });
     });
-    document.getElementById('sidebarToggle').addEventListener('click', () => {
+    document.getElementById('sidebarToggle').addEventListener('click', function() {
         document.getElementById('sidebar').classList.toggle('open');
     });
-    document.getElementById('sidebarClose').addEventListener('click', () => {
+    document.getElementById('sidebarClose').addEventListener('click', function() {
         document.getElementById('sidebar').classList.remove('open');
     });
 }
 
 function setupProjectSelector() {
-    document.getElementById('projectSelector').addEventListener('change', (e) => {
+    document.getElementById('projectSelector').addEventListener('change', function(e) {
         AppState.currentProjectId = e.target.value;
         navigateTo(AppState.currentPage);
     });
@@ -170,7 +163,7 @@ function setupProjectSelector() {
 // ---- Modal ----
 function setupModal() {
     document.getElementById('modalClose').addEventListener('click', closeModal);
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    document.getElementById('modalOverlay').addEventListener('click', function(e) {
         if (e.target === document.getElementById('modalOverlay')) closeModal();
     });
 }
@@ -179,7 +172,7 @@ function openModal(title, bodyHtml, footerHtml, isLarge) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalBody').innerHTML = bodyHtml;
     document.getElementById('modalFooter').innerHTML = footerHtml || '';
-    const mc = document.getElementById('modalContainer');
+    var mc = document.getElementById('modalContainer');
     if (isLarge) mc.classList.add('modal-lg'); else mc.classList.remove('modal-lg');
     document.getElementById('modalOverlay').classList.add('active');
 }
@@ -191,37 +184,39 @@ function closeModal() {
 // ---- Navigation ----
 function navigateTo(page) {
     AppState.currentPage = page;
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-    const activeLink = document.querySelector(`.sidebar-link[data-page="${page}"]`);
+    document.querySelectorAll('.sidebar-link').forEach(function(l) { l.classList.remove('active'); });
+    var activeLink = document.querySelector('.sidebar-link[data-page="' + page + '"]');
     if (activeLink) activeLink.classList.add('active');
 
-    const breadcrumb = document.getElementById('breadcrumb');
-    const project = getCurrentProject();
-    const pageNames = {
+    var breadcrumb = document.getElementById('breadcrumb');
+    var project = getCurrentProject();
+    var pageNames = {
         dashboard: 'Dashboard', projects: 'My Projects', overview: 'Project Overview',
         partners: 'Partners', workpackages: 'Work Packages', tasks: 'Tasks',
         documents: 'Documents', budget: 'Budget & Finance', dissemination: 'Dissemination',
         meetings: 'Meetings & TPMs', 'ai-report': 'AI Report Generator', settings: 'Settings'
     };
-    const pageName = pageNames[page] || page;
+    var pageName = pageNames[page] || page;
 
     if (['dashboard', 'projects', 'settings'].includes(page)) {
-        breadcrumb.innerHTML = `<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">${pageName}</span>`;
+        breadcrumb.innerHTML = '<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">' + pageName + '</span>';
     } else {
-        breadcrumb.innerHTML = `<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><a href="#" data-page="overview">${project.name}</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">${pageName}</span>`;
+        breadcrumb.innerHTML = '<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><a href="#" data-page="overview">' + project.name + '</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">' + pageName + '</span>';
     }
-    breadcrumb.querySelectorAll('a').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); navigateTo(a.dataset.page); }));
+    breadcrumb.querySelectorAll('a').forEach(function(a) {
+        a.addEventListener('click', function(e) { e.preventDefault(); navigateTo(a.dataset.page); });
+    });
 
-    const content = document.getElementById('pageContent');
-    const renderers = {
+    var content = document.getElementById('pageContent');
+    var renderers = {
         dashboard: renderDashboard, projects: renderProjects, overview: renderOverview,
         partners: renderPartners, workpackages: renderWorkPackages, tasks: renderTasks,
         documents: renderDocuments, budget: renderBudget, dissemination: renderDissemination,
         meetings: renderMeetings, 'ai-report': renderAIReport, settings: renderSettings
     };
-    const renderer = renderers[page];
+    var renderer = renderers[page];
     if (renderer) renderer(content);
-    else content.innerHTML = `<div class="empty-state"><i class="fas fa-construction"></i><h3>Coming Soon</h3><p>This page is under development.</p></div>`;
+    else content.innerHTML = '<div class="empty-state"><i class="fas fa-construction"></i><h3>Coming Soon</h3><p>This page is under development.</p></div>';
 
     document.getElementById('sidebar').classList.remove('open');
 }

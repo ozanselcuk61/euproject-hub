@@ -2,7 +2,6 @@
    EUProject Hub — Firebase Configuration
    ==================================== */
 
-// Firebase App & Services (using compat libraries for simplicity with vanilla JS)
 let auth;
 let db;
 
@@ -21,166 +20,194 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
     db = firebase.firestore();
+
+    // Handle redirect result (for Google sign-in)
+    auth.getRedirectResult().then(function(result) {
+        if (result.user) {
+            handlePostLogin(result.user);
+        }
+    }).catch(function(error) {
+        console.error('Redirect error:', error);
+        if (error.code !== 'auth/credential-already-in-use') {
+            showAuthError(error.message);
+        }
+    });
 }
 
 // ---- AUTH FUNCTIONS ----
 
 // Register with email/password
-async function registerWithEmail(email, password, firstName, lastName, organization) {
-    try {
-        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-
-        // Update display name
-        await user.updateProfile({
-            displayName: firstName + ' ' + lastName
+function registerWithEmail(email, password, firstName, lastName, organization) {
+    return auth.createUserWithEmailAndPassword(email, password)
+        .then(function(userCredential) {
+            var user = userCredential.user;
+            return user.updateProfile({
+                displayName: firstName + ' ' + lastName
+            }).then(function() {
+                return db.collection('users').doc(user.uid).set({
+                    firstName: firstName,
+                    lastName: lastName,
+                    email: email,
+                    organization: organization,
+                    role: 'coordinator',
+                    plan: 'trial',
+                    trialStart: new Date().toISOString(),
+                    trialEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }).then(function() {
+                return { success: true, user: user };
+            });
+        })
+        .catch(function(error) {
+            return { success: false, error: error.message };
         });
-
-        // Create user document in Firestore
-        await db.collection('users').doc(user.uid).set({
-            firstName: firstName,
-            lastName: lastName,
-            email: email,
-            organization: organization,
-            role: 'coordinator',
-            plan: 'trial',
-            trialStart: new Date().toISOString(),
-            trialEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-
-        return { success: true, user: user };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
 }
 
 // Login with email/password
-async function loginWithEmail(email, password) {
-    try {
-        const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        return { success: true, user: userCredential.user };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
+function loginWithEmail(email, password) {
+    return auth.signInWithEmailAndPassword(email, password)
+        .then(function(userCredential) {
+            return { success: true, user: userCredential.user };
+        })
+        .catch(function(error) {
+            return { success: false, error: error.message };
+        });
 }
 
-// Login with Google
-async function loginWithGoogle() {
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await auth.signInWithPopup(provider);
-        const user = result.user;
-
-        // Check if user doc exists, if not create one
-        const userDoc = await db.collection('users').doc(user.uid).get();
-        if (!userDoc.exists) {
-            const names = (user.displayName || 'User').split(' ');
-            await db.collection('users').doc(user.uid).set({
-                firstName: names[0] || '',
-                lastName: names.slice(1).join(' ') || '',
-                email: user.email,
-                organization: '',
-                role: 'coordinator',
-                plan: 'trial',
-                trialStart: new Date().toISOString(),
-                trialEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+// Login with Google - use redirect for Safari compatibility
+function loginWithGoogle() {
+    var provider = new firebase.auth.GoogleAuthProvider();
+    // Try popup first, fall back to redirect
+    return auth.signInWithPopup(provider)
+        .then(function(result) {
+            return handlePostLogin(result.user).then(function() {
+                return { success: true, user: result.user };
             });
-        }
+        })
+        .catch(function(error) {
+            // If popup blocked or failed, try redirect
+            if (error.code === 'auth/popup-blocked' ||
+                error.code === 'auth/popup-closed-by-user' ||
+                error.code === 'auth/cancelled-popup-request') {
+                return auth.signInWithRedirect(provider);
+            }
+            return { success: false, error: error.message };
+        });
+}
 
-        return { success: true, user: user };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
+// Handle user after login (create Firestore doc if needed)
+function handlePostLogin(user) {
+    if (!user) return Promise.resolve();
+    return db.collection('users').doc(user.uid).get()
+        .then(function(doc) {
+            if (!doc.exists) {
+                var names = (user.displayName || 'User').split(' ');
+                return db.collection('users').doc(user.uid).set({
+                    firstName: names[0] || '',
+                    lastName: names.slice(1).join(' ') || '',
+                    email: user.email,
+                    organization: '',
+                    role: 'coordinator',
+                    plan: 'trial',
+                    trialStart: new Date().toISOString(),
+                    trialEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        })
+        .catch(function(error) {
+            console.error('Post login error:', error);
+        });
 }
 
 // Logout
-async function logoutUser() {
-    try {
-        await auth.signOut();
-        return { success: true };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
+function logoutUser() {
+    return auth.signOut()
+        .then(function() {
+            appInitialized = false;
+            window.location.hash = '';
+            return { success: true };
+        })
+        .catch(function(error) {
+            console.error('Logout error:', error);
+            return { success: false, error: error.message };
+        });
 }
 
 // Get current user data from Firestore
-async function getUserData(uid) {
-    try {
-        const doc = await db.collection('users').doc(uid).get();
-        if (doc.exists) {
-            return doc.data();
-        }
-        return null;
-    } catch (error) {
-        console.error('Error getting user data:', error);
-        return null;
-    }
+function getUserData(uid) {
+    return db.collection('users').doc(uid).get()
+        .then(function(doc) {
+            if (doc.exists) return doc.data();
+            return null;
+        })
+        .catch(function(error) {
+            console.error('Error getting user data:', error);
+            return null;
+        });
 }
 
 // ---- FIRESTORE PROJECT FUNCTIONS ----
 
-// Save a project to Firestore
-async function saveProject(projectData) {
-    try {
-        const user = auth.currentUser;
-        if (!user) return { success: false, error: 'Not authenticated' };
+function saveProject(projectData) {
+    var user = auth.currentUser;
+    if (!user) return Promise.resolve({ success: false, error: 'Not authenticated' });
 
-        const docRef = await db.collection('projects').add({
-            ...projectData,
-            ownerId: user.uid,
-            ownerEmail: user.email,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+    return db.collection('projects').add({
+        ...projectData,
+        ownerId: user.uid,
+        ownerEmail: user.email,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function(docRef) {
         return { success: true, id: docRef.id };
-    } catch (error) {
+    }).catch(function(error) {
         return { success: false, error: error.message };
-    }
+    });
 }
 
-// Get user's projects from Firestore
-async function getUserProjects(uid) {
-    try {
-        const snapshot = await db.collection('projects')
-            .where('ownerId', '==', uid)
-            .orderBy('createdAt', 'desc')
-            .get();
-
-        const projects = [];
-        snapshot.forEach(doc => {
-            projects.push({ id: doc.id, ...doc.data() });
+function getUserProjects(uid) {
+    return db.collection('projects')
+        .where('ownerId', '==', uid)
+        .get()
+        .then(function(snapshot) {
+            var projects = [];
+            snapshot.forEach(function(doc) {
+                projects.push({ id: doc.id, ...doc.data() });
+            });
+            return projects;
+        })
+        .catch(function(error) {
+            console.error('Error getting projects:', error);
+            return [];
         });
-        return projects;
-    } catch (error) {
-        console.error('Error getting projects:', error);
-        return [];
-    }
 }
 
 // ---- AUTH STATE LISTENER ----
 function setupAuthListener() {
-    auth.onAuthStateChanged(async (user) => {
+    auth.onAuthStateChanged(function(user) {
         if (user) {
             // User is signed in
-            const userData = await getUserData(user.uid);
-            const names = (user.displayName || 'User').split(' ');
+            getUserData(user.uid).then(function(userData) {
+                var names = (user.displayName || 'User').split(' ');
+                var initials = (names[0] || 'U').charAt(0).toUpperCase();
+                if (names[1]) initials += names[1].charAt(0).toUpperCase();
 
-            AppState.currentUser = {
-                id: user.uid,
-                name: user.displayName || 'User',
-                email: user.email,
-                initials: (names[0] || 'U')[0] + (names[1] || '')[0] || '',
-                role: userData?.role || 'Coordinator',
-                plan: userData?.plan || 'trial',
-                organization: userData?.organization || '',
-                photoURL: user.photoURL || null
-            };
+                AppState.currentUser = {
+                    id: user.uid,
+                    name: user.displayName || 'User',
+                    email: user.email,
+                    initials: initials,
+                    role: (userData && userData.role) || 'Coordinator',
+                    plan: (userData && userData.plan) || 'trial',
+                    organization: (userData && userData.organization) || '',
+                    photoURL: user.photoURL || null
+                };
 
-            // Update UI with user info
-            updateUserUI();
-            showApp();
+                updateUserUI();
+                showApp();
+            });
         } else {
             // User is signed out
             showAuth('login');
@@ -190,16 +217,16 @@ function setupAuthListener() {
 
 // Update UI elements with current user info
 function updateUserUI() {
-    const user = AppState.currentUser;
+    var user = AppState.currentUser;
     if (!user) return;
 
-    const avatarEl = document.querySelector('.topbar-user .user-avatar');
-    const nameEl = document.querySelector('.topbar-user .user-name');
-    const roleEl = document.querySelector('.topbar-user .user-role');
+    var avatarEl = document.querySelector('.topbar-user .user-avatar');
+    var nameEl = document.querySelector('.topbar-user .user-name');
+    var roleEl = document.querySelector('.topbar-user .user-role');
 
     if (avatarEl) {
         if (user.photoURL) {
-            avatarEl.innerHTML = `<img src="${user.photoURL}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">`;
+            avatarEl.innerHTML = '<img src="' + user.photoURL + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">';
         } else {
             avatarEl.textContent = user.initials;
         }
@@ -209,20 +236,30 @@ function updateUserUI() {
 }
 
 // Show toast notification
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.style.cssText = `position:fixed;bottom:24px;right:24px;padding:14px 24px;border-radius:var(--radius);color:#fff;font-size:14px;font-weight:500;z-index:9999;animation:slideUp 0.3s ease;max-width:400px;box-shadow:var(--shadow-lg);`;
+function showToast(message, type) {
+    type = type || 'info';
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:14px 24px;border-radius:10px;color:#fff;font-size:14px;font-weight:500;z-index:9999;animation:slideUp 0.3s ease;max-width:400px;box-shadow:0 10px 15px rgba(0,0,0,0.1);';
 
-    if (type === 'success') toast.style.background = 'var(--success)';
-    else if (type === 'error') toast.style.background = 'var(--danger)';
-    else toast.style.background = 'var(--primary)';
+    if (type === 'success') toast.style.background = '#10b981';
+    else if (type === 'error') toast.style.background = '#ef4444';
+    else toast.style.background = '#1e40af';
 
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    setTimeout(() => {
+    setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
+}
+
+// Show auth error
+function showAuthError(message) {
+    var errorEl = document.getElementById('authError');
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+    }
 }
