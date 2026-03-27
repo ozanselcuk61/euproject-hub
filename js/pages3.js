@@ -482,7 +482,7 @@ function renderSettings(container) {
                         <button class="btn btn-secondary btn-block mb-4"><i class="fas fa-key"></i> Change Password</button>
                         <button class="btn btn-secondary btn-block mb-4"><i class="fas fa-lock"></i> Two-Factor Auth</button>
                         <hr style="margin:16px 0;border:none;border-top:1px solid var(--gray-200)">
-                        <button class="btn btn-danger btn-block" onclick="showAuth('login')"><i class="fas fa-sign-out-alt"></i> Log Out</button>
+                        <button class="btn btn-danger btn-block" onclick="logoutUser().then(()=>showToast('Logged out','info'))"><i class="fas fa-sign-out-alt"></i> Log Out</button>
                     </div>
                 </div>
             </div>

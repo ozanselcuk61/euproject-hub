@@ -2,16 +2,12 @@
    EUProject Hub — Main Application
    ==================================== */
 
+let appInitialized = false;
+
 // ---- App Initialization ----
 document.addEventListener('DOMContentLoaded', () => {
-    const hash = window.location.hash;
-    if (hash === '#register') {
-        showAuth('register');
-    } else if (hash === '#login' || !hash || hash === '#') {
-        showAuth('login');
-    } else {
-        showApp();
-    }
+    initFirebase();
+    setupAuthListener();
 });
 
 window.addEventListener('hashchange', () => {
@@ -21,10 +17,13 @@ window.addEventListener('hashchange', () => {
     }
 });
 
-// ---- Auth ----
+// ---- Auth UI ----
 function showAuth(mode) {
     document.getElementById('authPage').classList.remove('hidden');
     document.getElementById('appLayout').classList.add('hidden');
+    const errorEl = document.getElementById('authError');
+    if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+
     if (mode === 'register') {
         document.getElementById('loginForm').classList.add('hidden');
         document.getElementById('registerForm').classList.remove('hidden');
@@ -46,18 +45,103 @@ function showAuth(mode) {
         showAuth(mode === 'login' ? 'register' : 'login');
     };
 
-    document.getElementById('loginForm').onsubmit = (e) => { e.preventDefault(); showApp(); };
-    document.getElementById('registerForm').onsubmit = (e) => { e.preventDefault(); showApp(); };
+    // Login form handler
+    document.getElementById('loginForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const email = form.querySelector('input[type="email"]').value;
+        const password = form.querySelector('input[type="password"]').value;
+
+        if (!email || !password) {
+            showAuthError('Please fill in all fields.');
+            return;
+        }
+
+        form.classList.add('auth-loading');
+        const result = await loginWithEmail(email, password);
+        form.classList.remove('auth-loading');
+
+        if (!result.success) {
+            showAuthError(result.error);
+        } else {
+            showToast('Welcome back!', 'success');
+        }
+    };
+
+    // Register form handler
+    document.getElementById('registerForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const inputs = form.querySelectorAll('.form-input');
+        const firstName = inputs[0].value;
+        const lastName = inputs[1].value;
+        const email = inputs[2].value;
+        const organization = inputs[3].value;
+        const password = inputs[4].value;
+
+        if (!firstName || !lastName || !email || !password) {
+            showAuthError('Please fill in all required fields.');
+            return;
+        }
+
+        if (password.length < 6) {
+            showAuthError('Password must be at least 6 characters.');
+            return;
+        }
+
+        form.classList.add('auth-loading');
+        const result = await registerWithEmail(email, password, firstName, lastName, organization);
+        form.classList.remove('auth-loading');
+
+        if (!result.success) {
+            showAuthError(result.error);
+        } else {
+            showToast('Account created! Welcome to EUProject Hub.', 'success');
+        }
+    };
 }
 
+// Google login handler
+async function handleGoogleLogin() {
+    const btn = document.getElementById('googleSignIn');
+    btn.classList.add('auth-loading');
+    const result = await loginWithGoogle();
+    btn.classList.remove('auth-loading');
+
+    if (!result.success) {
+        showAuthError(result.error);
+    } else {
+        showToast('Signed in with Google!', 'success');
+    }
+}
+
+function showAuthError(message) {
+    const errorEl = document.getElementById('authError');
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+    }
+}
+
+// ---- Show App ----
 function showApp() {
     document.getElementById('authPage').classList.add('hidden');
     document.getElementById('appLayout').classList.remove('hidden');
-    window.location.hash = '#page-dashboard';
-    setupSidebar();
-    setupProjectSelector();
-    setupModal();
-    navigateTo('dashboard');
+
+    if (!appInitialized) {
+        setupSidebar();
+        setupProjectSelector();
+        setupModal();
+        appInitialized = true;
+    }
+
+    updateUserUI();
+
+    if (!window.location.hash.startsWith('#page-')) {
+        window.location.hash = '#page-dashboard';
+    }
+    const page = window.location.hash.replace('#page-', '') || 'dashboard';
+    navigateTo(page);
 }
 
 // ---- Sidebar ----

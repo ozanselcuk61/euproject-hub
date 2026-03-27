@@ -9,6 +9,18 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/app.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <style>
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .auth-error { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+        .auth-loading { opacity: 0.6; pointer-events: none; }
+        .google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit; color: var(--gray-700); transition: var(--transition); }
+        .google-btn:hover { background: var(--gray-50); border-color: var(--gray-400); }
+        .google-btn img { width: 20px; height: 20px; }
+    </style>
 </head>
 <body>
     <!-- Auth Pages (hidden by default) -->
@@ -27,11 +39,11 @@
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" class="form-input" placeholder="your@email.com" value="ozan.selcuk@university.edu">
+                    <input type="email" class="form-input" placeholder="your@email.com">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password</label>
-                    <input type="password" class="form-input" placeholder="Enter your password" value="demo123">
+                    <input type="password" class="form-input" placeholder="Enter your password">
                 </div>
                 <button type="submit" class="btn btn-primary btn-block btn-lg">
                     <i class="fas fa-sign-in-alt"></i> Log In
@@ -65,11 +77,11 @@
                 </button>
                 <p class="form-hint mt-4" style="text-align: center;">30-day free trial. No credit card required.</p>
             </form>
+            <p class="auth-error" id="authError"></p>
             <div class="auth-divider">or continue with</div>
-            <div class="flex gap-3">
-                <button class="btn btn-secondary btn-block"><i class="fab fa-google"></i> Google</button>
-                <button class="btn btn-secondary btn-block"><i class="fab fa-linkedin-in"></i> LinkedIn</button>
-            </div>
+            <button class="google-btn" id="googleSignIn" onclick="handleGoogleLogin()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"> Continue with Google
+            </button>
             <div class="auth-footer">
                 <span id="authToggleText">Don't have an account? </span>
                 <a href="#" id="authToggle">Sign up free</a>
@@ -204,6 +216,7 @@
     </div>
 
     <script src="js/data.js"></script>
+    <script src="js/firebase-config.js"></script>
     <script src="js/pages.js"></script>
     <script src="js/pages2.js"></script>
     <script src="js/pages3.js"></script>
