@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EUProject Hub — Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <!-- Auth Pages (hidden by default) -->
+    <div id="authPage" class="auth-page hidden">
+        <div class="auth-card">
+            <div class="auth-header">
+                <a href="index.html" class="nav-logo" style="justify-content: center;">
+                    <div class="logo-icon">
+                        <i class="fas fa-globe-europe"></i>
+                    </div>
+                    <span class="logo-text">EUProject<span class="logo-accent">Hub</span></span>
+                </a>
+                <h1 id="authTitle">Welcome Back</h1>
+                <p id="authSubtitle">Log in to manage your EU projects</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="your@email.com" value="ozan.selcuk@university.edu">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" placeholder="Enter your password" value="demo123">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg">
+                    <i class="fas fa-sign-in-alt"></i> Log In
+                </button>
+            </form>
+            <form id="registerForm" class="hidden">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-input" placeholder="John">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-input" placeholder="Doe">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Organization</label>
+                    <input type="text" class="form-input" placeholder="University / Institution name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" placeholder="Min. 8 characters">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg">
+                    <i class="fas fa-rocket"></i> Start Free Trial
+                </button>
+                <p class="form-hint mt-4" style="text-align: center;">30-day free trial. No credit card required.</p>
+            </form>
+            <div class="auth-divider">or continue with</div>
+            <div class="flex gap-3">
+                <button class="btn btn-secondary btn-block"><i class="fab fa-google"></i> Google</button>
+                <button class="btn btn-secondary btn-block"><i class="fab fa-linkedin-in"></i> LinkedIn</button>
+            </div>
+            <div class="auth-footer">
+                <span id="authToggleText">Don't have an account? </span>
+                <a href="#" id="authToggle">Sign up free</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div id="appLayout" class="app-layout hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="index.html" class="nav-logo">
+                    <div class="logo-icon" style="width: 32px; height: 32px; font-size: 14px;">
+                        <i class="fas fa-globe-europe"></i>
+                    </div>
+                    <span class="logo-text" style="font-size: 16px;">EU<span class="logo-accent">Hub</span></span>
+                </a>
+                <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Main</div>
+                    <button class="sidebar-link active" data-page="dashboard">
+                        <i class="fas fa-th-large"></i> Dashboard
+                    </button>
+                    <button class="sidebar-link" data-page="projects">
+                        <i class="fas fa-project-diagram"></i> My Projects
+                        <span class="badge">2</span>
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Current Project</div>
+                    <button class="sidebar-link" data-page="overview">
+                        <i class="fas fa-info-circle"></i> Overview
+                    </button>
+                    <button class="sidebar-link" data-page="partners">
+                        <i class="fas fa-users"></i> Partners
+                    </button>
+                    <button class="sidebar-link" data-page="workpackages">
+                        <i class="fas fa-cubes"></i> Work Packages
+                    </button>
+                    <button class="sidebar-link" data-page="tasks">
+                        <i class="fas fa-tasks"></i> Tasks
+                        <span class="badge">5</span>
+                    </button>
+                    <button class="sidebar-link" data-page="documents">
+                        <i class="fas fa-folder-open"></i> Documents
+                    </button>
+                    <button class="sidebar-link" data-page="budget">
+                        <i class="fas fa-euro-sign"></i> Budget & Finance
+                    </button>
+                    <button class="sidebar-link" data-page="dissemination">
+                        <i class="fas fa-bullhorn"></i> Dissemination
+                    </button>
+                    <button class="sidebar-link" data-page="meetings">
+                        <i class="fas fa-calendar-alt"></i> Meetings & TPMs
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Tools</div>
+                    <button class="sidebar-link" data-page="ai-report">
+                        <i class="fas fa-robot"></i> AI Report Generator
+                    </button>
+                    <button class="sidebar-link" data-page="settings">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
+                </div>
+            </nav>
+
+            <div class="sidebar-project-select">
+                <select class="project-selector" id="projectSelector">
+                    <option value="buildres">BuildRes (KA220)</option>
+                    <option value="yourein">You'ReIn (KA220)</option>
+                </select>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="topbar-toggle" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="topbar-breadcrumb" id="breadcrumb">
+                        <a href="#" data-page="dashboard">Home</a>
+                        <i class="fas fa-chevron-right" style="font-size: 10px;"></i>
+                        <span class="current">Dashboard</span>
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <div class="topbar-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search...">
+                    </div>
+                    <button class="topbar-notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <div class="topbar-user" id="userMenu">
+                        <div class="user-avatar">OS</div>
+                        <div>
+                            <div class="user-name">Ozan Selcuk</div>
+                            <div class="user-role">Coordinator</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content Container -->
+            <div class="page-content" id="pageContent">
+                <!-- Content rendered by JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalContainer">
+            <div class="modal-header">
+                <h2 id="modalTitle">Modal Title</h2>
+                <button class="modal-close" id="modalClose"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/pages.js"></script>
+    <script src="js/pages2.js"></script>
+    <script src="js/pages3.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
