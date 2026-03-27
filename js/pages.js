@@ -16,7 +16,7 @@ function renderDashboard(container) {
         <div class="page-header">
             <h1>Dashboard</h1>
             <div class="page-header-actions">
-                <button class="btn btn-primary" onclick="navigateTo('overview')"><i class="fas fa-plus"></i> New Project</button>
+                <button class="btn btn-primary" onclick="openNewProjectModal()"><i class="fas fa-plus"></i> New Project</button>
             </div>
         </div>
 
@@ -242,7 +242,92 @@ function openNewProjectModal() {
             <label class="form-label">Description</label>
             <textarea class="form-textarea" rows="3" placeholder="Brief project description..."></textarea>
         </div>
-    `, `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="closeModal();navigateTo('projects')"><i class="fas fa-check"></i> Create Project</button>`, true);
+    `, `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleCreateProject()"><i class="fas fa-check"></i> Create Project</button>`, true);
+}
+
+function handleCreateProject() {
+    var modal = document.getElementById('modalBody');
+    var inputs = modal.querySelectorAll('.form-input');
+    var selects = modal.querySelectorAll('.form-select');
+    var textarea = modal.querySelector('.form-textarea');
+
+    var name = inputs[0].value.trim();
+    var startDate = inputs[1].value;
+    var projectNumber = inputs[2].value.trim();
+    var programme = selects[0].value;
+    var grantText = selects[1].value;
+    var duration = parseInt(selects[2].value);
+    var description = textarea.value.trim();
+
+    if (!name) {
+        alert('Please enter a project name.');
+        return;
+    }
+
+    // Parse grant amount
+    var grantMap = {'€120,000': 120000, '€250,000': 250000, '€400,000': 400000};
+    var totalBudget = grantMap[grantText] || 250000;
+
+    // Calculate end date
+    var endDate = '';
+    if (startDate) {
+        var end = new Date(startDate);
+        end.setMonth(end.getMonth() + duration);
+        endDate = end.toISOString().split('T')[0];
+    }
+
+    // Generate ID
+    var id = name.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 15) + Date.now().toString().slice(-4);
+
+    // Add to local Projects data
+    Projects[id] = {
+        id: id,
+        name: name,
+        programme: programme,
+        projectNumber: projectNumber || 'TBD',
+        startDate: startDate || new Date().toISOString().split('T')[0],
+        endDate: endDate || '',
+        duration: duration,
+        status: 'active',
+        description: description || 'New EU project.',
+        totalBudget: totalBudget,
+        coordinator: AppState.currentUser.organization || AppState.currentUser.name,
+        coordinatorCountry: '',
+        lumpSum: { totalGrant: totalBudget, wpAllocations: {} }
+    };
+
+    // Initialize empty data for the new project
+    Partners[id] = [];
+    WorkPackages[id] = [];
+    Tasks[id] = [];
+    Documents[id] = { folders: [] };
+    Meetings[id] = [];
+    Dissemination[id] = { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] };
+    ActivityStream[id] = [];
+    BudgetTracking[id] = { wpStatus: [], partnerTransfers: [] };
+
+    // Save to Firestore
+    if (typeof saveProject === 'function') {
+        saveProject(Projects[id]).then(function(result) {
+            if (result.success) {
+                showToast('Project "' + name + '" created!', 'success');
+            }
+        });
+    }
+
+    // Update project selector
+    var selector = document.getElementById('projectSelector');
+    var option = document.createElement('option');
+    option.value = id;
+    option.textContent = name + ' (' + programme.split(' ').pop() + ')';
+    selector.appendChild(option);
+
+    // Switch to new project
+    AppState.currentProjectId = id;
+    selector.value = id;
+
+    closeModal();
+    navigateTo('overview');
 }
 
 // ---- PROJECT OVERVIEW ----
