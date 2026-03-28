@@ -43,9 +43,45 @@ function renderPartners(container) {
                     <div style="font-size:10px;color:var(--gray-500)">Utilized</div>\
                 </div>\
             </div>\
-            <button class="btn btn-sm btn-danger" style="margin-top:12px;width:100%" onclick="deletePartner(' + idx + ')"><i class="fas fa-trash"></i> Remove</button>\
+            <div style="display:flex;gap:6px;margin-top:12px">\
+                ' + (p.email && !p.invited ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();invitePartner(' + idx + ')"><i class="fas fa-envelope"></i> Invite</button>' : '') + '\
+                ' + (p.invited ? '<span style="flex:1;text-align:center;font-size:11px;color:var(--success);padding:6px"><i class="fas fa-check-circle"></i> Invited</span>' : '') + '\
+                <button class="btn btn-sm btn-danger" style="flex:1" onclick="event.stopPropagation();deletePartner(' + idx + ')"><i class="fas fa-trash"></i> Remove</button>\
+            </div>\
         </div>';
     }).join('');
+}
+
+function invitePartner(idx) {
+    var pid = AppState.currentProjectId;
+    var p = Partners[pid][idx];
+    var project = getCurrentProject();
+    if (!p || !p.email) { alert('No email address for this partner.'); return; }
+
+    if (!confirm('Send project access invitation to ' + p.email + '?\n\nThey will be able to access this project after registering.')) return;
+
+    // Add email to project memberEmails for access control
+    var memberEmails = project.memberEmails || [];
+    if (memberEmails.indexOf(p.email) === -1) {
+        memberEmails.push(p.email);
+    }
+
+    // Mark partner as invited
+    p.invited = true;
+    p.invitedAt = new Date().toISOString();
+
+    // Save invitation record + update partner + update memberEmails
+    Promise.all([
+        invitePartnerToProject(pid, p.email, p.contact || p.name, project.name),
+        updateProjectField(pid, 'partners', Partners[pid]),
+        updateProjectField(pid, 'memberEmails', memberEmails)
+    ]).then(function(results) {
+        project.memberEmails = memberEmails;
+        navigateTo('partners');
+        showToast('Invitation sent to ' + p.email + '! They can now register and access this project.', 'success');
+    }).catch(function() {
+        showToast('Error sending invitation.', 'error');
+    });
 }
 
 function openAddPartnerModal() {
@@ -60,6 +96,9 @@ function openAddPartnerModal() {
             <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="apEmail" placeholder="email@university.edu"></div>\
         </div>\
         <div class="form-group"><label class="form-label">Budget Allocation (&euro;)</label><input type="number" class="form-input" id="apBudget" placeholder="50000"></div>\
+        <div style="padding:10px;background:var(--primary-50);border-radius:var(--radius);font-size:12px;color:var(--primary-700)">\
+            <i class="fas fa-info-circle"></i> After adding, you can invite this partner via email. They will be able to register and access only this project.\
+        </div>\
     ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddPartner()"><i class="fas fa-check"></i> Add Partner</button>');
 }
 
