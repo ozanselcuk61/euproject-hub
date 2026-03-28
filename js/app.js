@@ -4,7 +4,6 @@
 
 var appInitialized = false;
 
-// ---- App Initialization ----
 document.addEventListener('DOMContentLoaded', function() {
     initFirebase();
     setupAuthListener();
@@ -45,30 +44,20 @@ function showAuth(mode) {
         showAuth(mode === 'login' ? 'register' : 'login');
     };
 
-    // Login form handler
     document.getElementById('loginForm').onsubmit = function(e) {
         e.preventDefault();
         var form = e.target;
         var email = form.querySelector('input[type="email"]').value;
         var password = form.querySelector('input[type="password"]').value;
-
-        if (!email || !password) {
-            showAuthError('Please fill in all fields.');
-            return;
-        }
-
+        if (!email || !password) { showAuthError('Please fill in all fields.'); return; }
         form.classList.add('auth-loading');
         loginWithEmail(email, password).then(function(result) {
             form.classList.remove('auth-loading');
-            if (!result.success) {
-                showAuthError(result.error);
-            } else {
-                showToast('Welcome back!', 'success');
-            }
+            if (!result.success) showAuthError(result.error);
+            else showToast('Welcome back!', 'success');
         });
     };
 
-    // Register form handler
     document.getElementById('registerForm').onsubmit = function(e) {
         e.preventDefault();
         var form = e.target;
@@ -78,38 +67,23 @@ function showAuth(mode) {
         var email = inputs[2].value;
         var organization = inputs[3].value;
         var password = inputs[4].value;
-
-        if (!firstName || !lastName || !email || !password) {
-            showAuthError('Please fill in all required fields.');
-            return;
-        }
-
-        if (password.length < 6) {
-            showAuthError('Password must be at least 6 characters.');
-            return;
-        }
-
+        if (!firstName || !lastName || !email || !password) { showAuthError('Please fill in all required fields.'); return; }
+        if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
         form.classList.add('auth-loading');
         registerWithEmail(email, password, firstName, lastName, organization).then(function(result) {
             form.classList.remove('auth-loading');
-            if (!result.success) {
-                showAuthError(result.error);
-            } else {
-                showToast('Account created! Welcome to EUProject Hub.', 'success');
-            }
+            if (!result.success) showAuthError(result.error);
+            else showToast('Account created! Welcome to EUProject Hub.', 'success');
         });
     };
 }
 
-// Google login handler
 function handleGoogleLogin() {
     var btn = document.getElementById('googleSignIn');
     btn.classList.add('auth-loading');
     loginWithGoogle().then(function(result) {
         btn.classList.remove('auth-loading');
-        if (result && !result.success) {
-            showAuthError(result.error);
-        }
+        if (result && !result.success) showAuthError(result.error);
     }).catch(function(err) {
         btn.classList.remove('auth-loading');
         console.error('Google login error:', err);
@@ -128,13 +102,55 @@ function showApp() {
         appInitialized = true;
     }
 
+    refreshProjectSelector();
     updateUserUI();
+    updateSidebarBadges();
 
     if (!window.location.hash.startsWith('#page-')) {
         window.location.hash = '#page-dashboard';
     }
     var page = window.location.hash.replace('#page-', '') || 'dashboard';
     navigateTo(page);
+}
+
+// ---- Project Selector ----
+function refreshProjectSelector() {
+    var selector = document.getElementById('projectSelector');
+    selector.innerHTML = '';
+
+    var projectIds = Object.keys(Projects);
+    if (projectIds.length === 0) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No projects yet';
+        selector.appendChild(opt);
+        return;
+    }
+
+    projectIds.forEach(function(id) {
+        var p = Projects[id];
+        var opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = p.name + (p.programme ? ' (' + p.programme.split(' ').pop() + ')' : '');
+        selector.appendChild(opt);
+    });
+
+    if (AppState.currentProjectId && Projects[AppState.currentProjectId]) {
+        selector.value = AppState.currentProjectId;
+    } else if (projectIds.length > 0) {
+        AppState.currentProjectId = projectIds[0];
+        selector.value = projectIds[0];
+    }
+}
+
+function updateSidebarBadges() {
+    var projectCount = getProjectCount();
+    var projectBadge = document.querySelector('.sidebar-link[data-page="projects"] .badge');
+    if (projectBadge) projectBadge.textContent = projectCount;
+
+    var taskCount = getCurrentTasks().filter(function(t) { return t.status !== 'completed'; }).length;
+    var taskBadge = document.querySelector('.sidebar-link[data-page="tasks"] .badge');
+    if (taskBadge) taskBadge.textContent = taskCount;
 }
 
 // ---- Sidebar ----
@@ -156,6 +172,7 @@ function setupSidebar() {
 function setupProjectSelector() {
     document.getElementById('projectSelector').addEventListener('change', function(e) {
         AppState.currentProjectId = e.target.value;
+        updateSidebarBadges();
         navigateTo(AppState.currentPage);
     });
 }
@@ -200,14 +217,24 @@ function navigateTo(page) {
 
     if (['dashboard', 'projects', 'settings'].includes(page)) {
         breadcrumb.innerHTML = '<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">' + pageName + '</span>';
-    } else {
+    } else if (project) {
         breadcrumb.innerHTML = '<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><a href="#" data-page="overview">' + project.name + '</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">' + pageName + '</span>';
+    } else {
+        breadcrumb.innerHTML = '<a href="#" data-page="dashboard">Home</a><i class="fas fa-chevron-right" style="font-size:10px"></i><span class="current">' + pageName + '</span>';
     }
     breadcrumb.querySelectorAll('a').forEach(function(a) {
         a.addEventListener('click', function(e) { e.preventDefault(); navigateTo(a.dataset.page); });
     });
 
     var content = document.getElementById('pageContent');
+
+    // If no project selected and page requires one, redirect to projects
+    var projectPages = ['overview', 'partners', 'workpackages', 'tasks', 'documents', 'budget', 'dissemination', 'meetings', 'ai-report'];
+    if (projectPages.indexOf(page) !== -1 && !project) {
+        navigateTo('projects');
+        return;
+    }
+
     var renderers = {
         dashboard: renderDashboard, projects: renderProjects, overview: renderOverview,
         partners: renderPartners, workpackages: renderWorkPackages, tasks: renderTasks,

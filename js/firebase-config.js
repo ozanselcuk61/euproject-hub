@@ -1,13 +1,12 @@
 /* ====================================
-   EUProject Hub — Firebase Configuration
+   EUProject Hub — Firebase Configuration & CRUD
    ==================================== */
 
-let auth;
-let db;
+var auth;
+var db;
 
-// Initialize Firebase
 function initFirebase() {
-    const firebaseConfig = {
+    var firebaseConfig = {
         apiKey: "AIzaSyAZL5Sh6dsEl4P5A6wWt1rV8Shjvj3AWa0",
         authDomain: "euproject-hub.firebaseapp.com",
         projectId: "euproject-hub",
@@ -21,7 +20,6 @@ function initFirebase() {
     auth = firebase.auth();
     db = firebase.firestore();
 
-    // Handle redirect result (for Google sign-in)
     auth.getRedirectResult().then(function(result) {
         if (result.user) {
             handlePostLogin(result.user);
@@ -36,7 +34,6 @@ function initFirebase() {
 
 // ---- AUTH FUNCTIONS ----
 
-// Register with email/password
 function registerWithEmail(email, password, firstName, lastName, organization) {
     return auth.createUserWithEmailAndPassword(email, password)
         .then(function(userCredential) {
@@ -64,7 +61,6 @@ function registerWithEmail(email, password, firstName, lastName, organization) {
         });
 }
 
-// Login with email/password
 function loginWithEmail(email, password) {
     return auth.signInWithEmailAndPassword(email, password)
         .then(function(userCredential) {
@@ -75,10 +71,8 @@ function loginWithEmail(email, password) {
         });
 }
 
-// Login with Google - use redirect for Safari compatibility
 function loginWithGoogle() {
     var provider = new firebase.auth.GoogleAuthProvider();
-    // Try popup first, fall back to redirect
     return auth.signInWithPopup(provider)
         .then(function(result) {
             return handlePostLogin(result.user).then(function() {
@@ -86,7 +80,6 @@ function loginWithGoogle() {
             });
         })
         .catch(function(error) {
-            // If popup blocked or failed, try redirect
             if (error.code === 'auth/popup-blocked' ||
                 error.code === 'auth/popup-closed-by-user' ||
                 error.code === 'auth/cancelled-popup-request') {
@@ -96,7 +89,6 @@ function loginWithGoogle() {
         });
 }
 
-// Handle user after login (create Firestore doc if needed)
 function handlePostLogin(user) {
     if (!user) return Promise.resolve();
     return db.collection('users').doc(user.uid).get()
@@ -121,11 +113,22 @@ function handlePostLogin(user) {
         });
 }
 
-// Logout
 function logoutUser() {
     return auth.signOut()
         .then(function() {
+            // Clear all local data
             appInitialized = false;
+            AppState.currentUser = null;
+            AppState.currentProjectId = null;
+            Object.keys(Projects).forEach(function(k) { delete Projects[k]; });
+            Object.keys(Partners).forEach(function(k) { delete Partners[k]; });
+            Object.keys(WorkPackages).forEach(function(k) { delete WorkPackages[k]; });
+            Object.keys(Tasks).forEach(function(k) { delete Tasks[k]; });
+            Object.keys(Documents).forEach(function(k) { delete Documents[k]; });
+            Object.keys(Meetings).forEach(function(k) { delete Meetings[k]; });
+            Object.keys(Dissemination).forEach(function(k) { delete Dissemination[k]; });
+            Object.keys(ActivityStream).forEach(function(k) { delete ActivityStream[k]; });
+            Object.keys(BudgetTracking).forEach(function(k) { delete BudgetTracking[k]; });
             window.location.hash = '';
             return { success: true };
         })
@@ -135,7 +138,6 @@ function logoutUser() {
         });
 }
 
-// Get current user data from Firestore
 function getUserData(uid) {
     return db.collection('users').doc(uid).get()
         .then(function(doc) {
@@ -148,39 +150,121 @@ function getUserData(uid) {
         });
 }
 
-// ---- FIRESTORE PROJECT FUNCTIONS ----
+// ---- FIRESTORE PROJECT CRUD ----
 
 function saveProject(projectData) {
     var user = auth.currentUser;
     if (!user) return Promise.resolve({ success: false, error: 'Not authenticated' });
 
-    return db.collection('projects').add({
-        ...projectData,
+    var docData = {
+        name: projectData.name || '',
+        programme: projectData.programme || '',
+        projectNumber: projectData.projectNumber || '',
+        startDate: projectData.startDate || '',
+        endDate: projectData.endDate || '',
+        duration: projectData.duration || 24,
+        status: projectData.status || 'active',
+        description: projectData.description || '',
+        totalBudget: projectData.totalBudget || 0,
+        coordinator: projectData.coordinator || '',
+        coordinatorCountry: projectData.coordinatorCountry || '',
+        lumpSum: projectData.lumpSum || { totalGrant: 0, wpAllocations: {} },
+        partners: projectData.partners || [],
+        workPackages: projectData.workPackages || [],
+        tasks: projectData.tasks || [],
+        documents: projectData.documents || { folders: [] },
+        meetings: projectData.meetings || [],
+        dissemination: projectData.dissemination || { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] },
+        activityStream: projectData.activityStream || [],
+        budgetTracking: projectData.budgetTracking || { wpStatus: [], partnerTransfers: [] },
         ownerId: user.uid,
         ownerEmail: user.email,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(function(docRef) {
-        return { success: true, id: docRef.id };
-    }).catch(function(error) {
-        return { success: false, error: error.message };
-    });
+    };
+
+    if (projectData.firestoreId) {
+        // Update existing
+        return db.collection('projects').doc(projectData.firestoreId).update(docData)
+            .then(function() { return { success: true, id: projectData.firestoreId }; })
+            .catch(function(error) { return { success: false, error: error.message }; });
+    } else {
+        // Create new
+        docData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        return db.collection('projects').add(docData)
+            .then(function(docRef) { return { success: true, id: docRef.id }; })
+            .catch(function(error) { return { success: false, error: error.message }; });
+    }
 }
 
-function getUserProjects(uid) {
+function loadUserProjects() {
+    var user = auth.currentUser;
+    if (!user) return Promise.resolve([]);
+
     return db.collection('projects')
-        .where('ownerId', '==', uid)
+        .where('ownerId', '==', user.uid)
         .get()
         .then(function(snapshot) {
-            var projects = [];
+            // Clear existing data
+            Object.keys(Projects).forEach(function(k) { delete Projects[k]; });
+            Object.keys(Partners).forEach(function(k) { delete Partners[k]; });
+            Object.keys(WorkPackages).forEach(function(k) { delete WorkPackages[k]; });
+            Object.keys(Tasks).forEach(function(k) { delete Tasks[k]; });
+            Object.keys(Documents).forEach(function(k) { delete Documents[k]; });
+            Object.keys(Meetings).forEach(function(k) { delete Meetings[k]; });
+            Object.keys(Dissemination).forEach(function(k) { delete Dissemination[k]; });
+            Object.keys(ActivityStream).forEach(function(k) { delete ActivityStream[k]; });
+            Object.keys(BudgetTracking).forEach(function(k) { delete BudgetTracking[k]; });
+
             snapshot.forEach(function(doc) {
-                projects.push({ id: doc.id, ...doc.data() });
+                var data = doc.data();
+                var id = doc.id;
+
+                Projects[id] = {
+                    id: id,
+                    firestoreId: id,
+                    name: data.name || '',
+                    programme: data.programme || '',
+                    projectNumber: data.projectNumber || '',
+                    startDate: data.startDate || '',
+                    endDate: data.endDate || '',
+                    duration: data.duration || 24,
+                    status: data.status || 'active',
+                    description: data.description || '',
+                    totalBudget: data.totalBudget || 0,
+                    coordinator: data.coordinator || '',
+                    coordinatorCountry: data.coordinatorCountry || '',
+                    lumpSum: data.lumpSum || { totalGrant: 0, wpAllocations: {} }
+                };
+
+                Partners[id] = data.partners || [];
+                WorkPackages[id] = data.workPackages || [];
+                Tasks[id] = data.tasks || [];
+                Documents[id] = data.documents || { folders: [] };
+                Meetings[id] = data.meetings || [];
+                Dissemination[id] = data.dissemination || { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] };
+                ActivityStream[id] = data.activityStream || [];
+                BudgetTracking[id] = data.budgetTracking || { wpStatus: [], partnerTransfers: [] };
             });
-            return projects;
+
+            return Object.keys(Projects);
         })
         .catch(function(error) {
-            console.error('Error getting projects:', error);
+            console.error('Error loading projects:', error);
             return [];
+        });
+}
+
+// Save a specific sub-data of a project
+function updateProjectField(projectId, fieldName, fieldValue) {
+    if (!projectId) return Promise.resolve({ success: false, error: 'No project ID' });
+    var updateData = {};
+    updateData[fieldName] = fieldValue;
+    updateData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    return db.collection('projects').doc(projectId).update(updateData)
+        .then(function() { return { success: true }; })
+        .catch(function(error) {
+            console.error('Error updating field:', error);
+            return { success: false, error: error.message };
         });
 }
 
@@ -188,7 +272,6 @@ function getUserProjects(uid) {
 function setupAuthListener() {
     auth.onAuthStateChanged(function(user) {
         if (user) {
-            // User is signed in
             getUserData(user.uid).then(function(userData) {
                 var names = (user.displayName || 'User').split(' ');
                 var initials = (names[0] || 'U').charAt(0).toUpperCase();
@@ -205,17 +288,21 @@ function setupAuthListener() {
                     photoURL: user.photoURL || null
                 };
 
-                updateUserUI();
-                showApp();
+                // Load projects from Firestore then show app
+                loadUserProjects().then(function(projectIds) {
+                    if (projectIds.length > 0) {
+                        AppState.currentProjectId = projectIds[0];
+                    }
+                    updateUserUI();
+                    showApp();
+                });
             });
         } else {
-            // User is signed out
             showAuth('login');
         }
     });
 }
 
-// Update UI elements with current user info
 function updateUserUI() {
     var user = AppState.currentUser;
     if (!user) return;
@@ -235,7 +322,6 @@ function updateUserUI() {
     if (roleEl) roleEl.textContent = user.role;
 }
 
-// Show toast notification
 function showToast(message, type) {
     type = type || 'info';
     var toast = document.createElement('div');
@@ -255,7 +341,6 @@ function showToast(message, type) {
     }, 3000);
 }
 
-// Show auth error
 function showAuthError(message) {
     var errorEl = document.getElementById('authError');
     if (errorEl) {
