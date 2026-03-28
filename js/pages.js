@@ -386,6 +386,7 @@ function renderOverview(container) {
         <div class="page-header">\
             <h1>' + p.name + '</h1>\
             <div class="page-header-actions">\
+                <button class="btn btn-secondary" onclick="openEditProjectModal()"><i class="fas fa-edit"></i> Edit</button>\
                 <button class="btn btn-primary" onclick="navigateTo(\'ai-report\')"><i class="fas fa-robot"></i> Generate Report</button>\
             </div>\
         </div>\
@@ -451,4 +452,159 @@ function renderOverview(container) {
     } else {
         partnerListEl.innerHTML = '<p style="color:var(--gray-400);font-size:13px">No partners added yet. <a href="#" onclick="navigateTo(\'partners\');return false" style="color:var(--primary)">Add partners</a></p>';
     }
+}
+
+// ---- EDIT PROJECT ----
+function openEditProjectModal() {
+    var p = getCurrentProject();
+    if (!p) return;
+
+    var programmeOptions = ['Erasmus+ KA220-HED', 'Erasmus+ KA220-VET', 'Erasmus+ KA220-SCH', 'Erasmus+ KA220-ADU', 'Erasmus+ KA220-YOU'];
+    var programmeSelect = programmeOptions.map(function(opt) {
+        return '<option' + (opt === p.programme ? ' selected' : '') + '>' + opt + '</option>';
+    }).join('');
+
+    var grantOptions = [
+        { value: 120000, label: '\u20ac120,000' },
+        { value: 250000, label: '\u20ac250,000' },
+        { value: 400000, label: '\u20ac400,000' }
+    ];
+    var grantSelect = grantOptions.map(function(opt) {
+        return '<option value="' + opt.value + '"' + (opt.value === p.totalBudget ? ' selected' : '') + '>' + opt.label + '</option>';
+    }).join('');
+    // Add custom option if budget doesn't match presets
+    var isCustomBudget = !grantOptions.some(function(o) { return o.value === p.totalBudget; });
+    if (isCustomBudget && p.totalBudget) {
+        grantSelect += '<option value="' + p.totalBudget + '" selected>\u20ac' + p.totalBudget.toLocaleString() + ' (custom)</option>';
+    }
+
+    var durationOptions = [12, 24, 36].map(function(d) {
+        return '<option' + (d === p.duration ? ' selected' : '') + '>' + d + '</option>';
+    }).join('');
+
+    var statusOptions = ['active', 'completed', 'suspended'].map(function(s) {
+        return '<option value="' + s + '"' + (s === p.status ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
+    }).join('');
+
+    openModal('Edit Project', '\
+        <div class="form-group">\
+            <label class="form-label">Project Name</label>\
+            <input type="text" class="form-input" id="epName" value="' + (p.name || '').replace(/"/g, '&quot;') + '">\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group">\
+                <label class="form-label">Programme</label>\
+                <select class="form-select" id="epProgramme">' + programmeSelect + '</select>\
+            </div>\
+            <div class="form-group">\
+                <label class="form-label">Grant Amount (Lump Sum)</label>\
+                <select class="form-select" id="epGrant">' + grantSelect + '</select>\
+            </div>\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group">\
+                <label class="form-label">Start Date</label>\
+                <input type="date" class="form-input" id="epStartDate" value="' + (p.startDate || '') + '">\
+            </div>\
+            <div class="form-group">\
+                <label class="form-label">End Date</label>\
+                <input type="date" class="form-input" id="epEndDate" value="' + (p.endDate || '') + '">\
+            </div>\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group">\
+                <label class="form-label">Duration (months)</label>\
+                <select class="form-select" id="epDuration">' + durationOptions + '</select>\
+            </div>\
+            <div class="form-group">\
+                <label class="form-label">Status</label>\
+                <select class="form-select" id="epStatus">' + statusOptions + '</select>\
+            </div>\
+        </div>\
+        <div class="form-group">\
+            <label class="form-label">Project Number</label>\
+            <input type="text" class="form-input" id="epNumber" value="' + (p.projectNumber || '').replace(/"/g, '&quot;') + '">\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group">\
+                <label class="form-label">Coordinator Organization</label>\
+                <input type="text" class="form-input" id="epCoordinator" value="' + (p.coordinator || '').replace(/"/g, '&quot;') + '">\
+            </div>\
+            <div class="form-group">\
+                <label class="form-label">Coordinator Country</label>\
+                <input type="text" class="form-input" id="epCountry" value="' + (p.coordinatorCountry || '').replace(/"/g, '&quot;') + '">\
+            </div>\
+        </div>\
+        <div class="form-group">\
+            <label class="form-label">Description</label>\
+            <textarea class="form-textarea" rows="3" id="epDesc">' + (p.description || '') + '</textarea>\
+        </div>\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleEditProject()"><i class="fas fa-save"></i> Save Changes</button>', true);
+}
+
+function handleEditProject() {
+    var pid = AppState.currentProjectId;
+    var p = Projects[pid];
+    if (!p) return;
+
+    var name = document.getElementById('epName').value.trim();
+    var programme = document.getElementById('epProgramme').value;
+    var totalBudget = parseInt(document.getElementById('epGrant').value);
+    var startDate = document.getElementById('epStartDate').value;
+    var endDate = document.getElementById('epEndDate').value;
+    var duration = parseInt(document.getElementById('epDuration').value);
+    var status = document.getElementById('epStatus').value;
+    var projectNumber = document.getElementById('epNumber').value.trim();
+    var coordinator = document.getElementById('epCoordinator').value.trim();
+    var coordinatorCountry = document.getElementById('epCountry').value.trim();
+    var description = document.getElementById('epDesc').value.trim();
+
+    if (!name) { alert('Project name is required.'); return; }
+
+    var btn = document.querySelector('#modalFooter .btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
+
+    // Build update object
+    var updates = {
+        name: name,
+        programme: programme,
+        totalBudget: totalBudget,
+        startDate: startDate,
+        endDate: endDate,
+        duration: duration,
+        status: status,
+        projectNumber: projectNumber,
+        coordinator: coordinator,
+        coordinatorCountry: coordinatorCountry,
+        description: description,
+        'lumpSum.totalGrant': totalBudget,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    db.collection('projects').doc(pid).update(updates)
+        .then(function() {
+            // Update local state
+            p.name = name;
+            p.programme = programme;
+            p.totalBudget = totalBudget;
+            p.startDate = startDate;
+            p.endDate = endDate;
+            p.duration = duration;
+            p.status = status;
+            p.projectNumber = projectNumber;
+            p.coordinator = coordinator;
+            p.coordinatorCountry = coordinatorCountry;
+            p.description = description;
+            p.lumpSum = p.lumpSum || {};
+            p.lumpSum.totalGrant = totalBudget;
+
+            refreshProjectSelector();
+            closeModal();
+            navigateTo('overview');
+            showToast('Project updated!', 'success');
+        })
+        .catch(function(error) {
+            showToast('Error: ' + error.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Changes'; }
+        });
 }
