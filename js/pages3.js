@@ -24,6 +24,7 @@ function renderBudget(container) {
         <div class="page-header">\
             <h1>Budget & Finance</h1>\
             <div class="page-header-actions">\
+                <button class="btn btn-secondary" onclick="generateTabReport(\'budget\')"><i class="fas fa-robot"></i> AI Report</button>\
                 <button class="btn btn-secondary" onclick="openBudgetEntryModal()"><i class="fas fa-edit"></i> Edit Budget Plan</button>\
                 <button class="btn btn-secondary" onclick="openTimesheetModal()"><i class="fas fa-clock"></i> Timesheet</button>\
                 <button class="btn btn-primary" onclick="openTransferModal()"><i class="fas fa-exchange-alt"></i> Record Transfer</button>\
@@ -335,6 +336,7 @@ function renderDissemination(container) {
         <div class="page-header">\
             <h1>Dissemination & Communication</h1>\
             <div class="page-header-actions">\
+                <button class="btn btn-secondary" onclick="generateTabReport(\'dissemination\')"><i class="fas fa-robot"></i> AI Report</button>\
                 <button class="btn btn-primary" onclick="openAddDisseminationModal()"><i class="fas fa-plus"></i> Log Activity</button>\
             </div>\
         </div>\
@@ -607,6 +609,105 @@ function handleAddMeeting() {
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Create Meeting'; }
         }
     });
+}
+
+// ---- TAB-SPECIFIC AI REPORTS ----
+function generateTabReport(tab) {
+    var project = getCurrentProject();
+    if (!project) return;
+
+    var title = '';
+    var content = '';
+
+    if (tab === 'tasks') {
+        title = 'Tasks Report: ' + project.name;
+        var tasks = getCurrentTasks();
+        var pending = tasks.filter(function(t) { return t.status === 'pending'; });
+        var inProgress = tasks.filter(function(t) { return t.status === 'in_progress'; });
+        var completed = tasks.filter(function(t) { return t.status === 'completed'; });
+        var overdue = tasks.filter(function(t) { return t.status !== 'completed' && t.due && new Date(t.due) < new Date(); });
+
+        content = '<h3>Task Status Summary</h3>' +
+            '<p>Total tasks: <strong>' + tasks.length + '</strong> | Completed: <strong>' + completed.length + '</strong> | In Progress: <strong>' + inProgress.length + '</strong> | Pending: <strong>' + pending.length + '</strong></p>' +
+            (overdue.length > 0 ? '<p style="color:var(--danger)"><strong>Overdue tasks: ' + overdue.length + '</strong></p><ul>' + overdue.map(function(t) { return '<li>' + t.title + ' (assigned to ' + t.assignee + ', due ' + formatDate(t.due) + ')</li>'; }).join('') + '</ul>' : '<p style="color:var(--success)">No overdue tasks.</p>') +
+            '<h3>Task Distribution by Work Package</h3><ul>' +
+            getCurrentWPs().map(function(wp) {
+                var wpTasks = tasks.filter(function(t) { return t.wp === wp.number; });
+                return '<li><strong>' + wp.number + '</strong>: ' + wpTasks.length + ' tasks (' + wpTasks.filter(function(t) { return t.status === 'completed'; }).length + ' completed)</li>';
+            }).join('') + '</ul>' +
+            '<h3>Task Distribution by Assignee</h3><ul>' +
+            getCurrentPartners().map(function(p) {
+                var pTasks = tasks.filter(function(t) { return t.assignee === p.contact; });
+                return pTasks.length > 0 ? '<li><strong>' + p.contact + '</strong> (' + p.name + '): ' + pTasks.length + ' tasks</li>' : '';
+            }).filter(Boolean).join('') + '</ul>' +
+            '<h3>Completion Rate</h3><p>' + (tasks.length > 0 ? Math.round(completed.length / tasks.length * 100) : 0) + '% of all tasks completed.</p>';
+    }
+
+    if (tab === 'budget') {
+        title = 'Budget Report: ' + project.name;
+        var partners = getCurrentPartners();
+        var budget = getCurrentBudget();
+        var totalPlanned = partners.reduce(function(s, p) { return s + (p.budget || 0); }, 0);
+        var totalActual = partners.reduce(function(s, p) { return s + (p.spent || 0); }, 0);
+
+        content = '<h3>Budget Execution Summary</h3>' +
+            '<p>Total Grant: <strong>' + formatCurrency(project.totalBudget) + '</strong> (Lump Sum)</p>' +
+            '<p>Total Planned (partner allocations): <strong>' + formatCurrency(totalPlanned) + '</strong></p>' +
+            '<p>Total Actual Spent: <strong>' + formatCurrency(totalActual) + '</strong></p>' +
+            '<p>Overall utilization: <strong>' + (totalPlanned > 0 ? Math.round(totalActual / totalPlanned * 100) : 0) + '%</strong></p>' +
+            '<h3>Per Partner Budget Status</h3><table class="data-table"><thead><tr><th>Partner</th><th>Planned</th><th>Actual</th><th>Difference</th><th>Status</th></tr></thead><tbody>' +
+            partners.map(function(p) {
+                var diff = (p.budget || 0) - (p.spent || 0);
+                return '<tr><td>' + p.name + '</td><td>' + formatCurrency(p.budget) + '</td><td>' + formatCurrency(p.spent || 0) + '</td><td style="color:' + (diff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + (diff >= 0 ? '+' : '') + formatCurrency(diff) + '</td><td>' + (diff >= 0 ? 'Under budget' : 'Over budget') + '</td></tr>';
+            }).join('') + '</tbody></table>' +
+            (budget.timesheets && budget.timesheets.length > 0 ? '<h3>Timesheet Summary</h3><p>Total entries: ' + budget.timesheets.length + ' | Total hours: ' + budget.timesheets.reduce(function(s, t) { return s + (t.hours || 0); }, 0) + 'h</p>' : '');
+    }
+
+    if (tab === 'dissemination') {
+        title = 'Dissemination Report: ' + project.name;
+        var diss = getCurrentDissemination();
+        var activities = diss.activities || [];
+
+        content = '<h3>Dissemination Summary</h3>' +
+            '<p>Total activities: <strong>' + activities.length + '</strong></p>' +
+            '<p>Events: <strong>' + (diss.summary.events || 0) + '</strong> | Publications: <strong>' + (diss.summary.publications || 0) + '</strong></p>' +
+            '<p>Total social media reach: <strong>' + (diss.summary.socialReach || 0).toLocaleString() + '</strong> | Website visits: <strong>' + (diss.summary.website_visits || 0).toLocaleString() + '</strong></p>' +
+            '<h3>Activities by Type</h3><ul>';
+        var typeCounts = {};
+        activities.forEach(function(a) { typeCounts[a.type] = (typeCounts[a.type] || 0) + 1; });
+        Object.keys(typeCounts).forEach(function(type) { content += '<li>' + type + ': ' + typeCounts[type] + '</li>'; });
+        content += '</ul>' +
+            '<h3>Activities by Partner</h3><ul>';
+        var partnerCounts = {};
+        activities.forEach(function(a) { partnerCounts[a.partner] = (partnerCounts[a.partner] || 0) + 1; });
+        Object.keys(partnerCounts).forEach(function(p) { content += '<li>' + p + ': ' + partnerCounts[p] + ' activities</li>'; });
+        content += '</ul>' +
+            '<h3>Recent Activities</h3><ul>' + activities.slice(-5).reverse().map(function(a) { return '<li>' + a.title + ' (' + a.type + ', ' + formatDate(a.date) + ')' + (a.link ? ' <a href="' + a.link + '" target="_blank">[link]</a>' : '') + '</li>'; }).join('') + '</ul>';
+    }
+
+    openModal(title, '\
+        <div class="ai-report-output">\
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px">\
+                <button class="btn btn-sm btn-ghost" onclick="copyReportToClipboard()"><i class="fas fa-copy"></i> Copy</button>\
+            </div>\
+            <div id="tabReportContent">' + content + '</div>\
+            <hr style="margin:20px 0;border:none;border-top:1px solid var(--gray-200)">\
+            <p style="font-size:12px;color:var(--gray-400)"><em>Generated on ' + new Date().toLocaleDateString('en-GB') + ' by EUProject Hub</em></p>\
+        </div>\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Close</button>', true);
+}
+
+function copyReportToClipboard() {
+    var el = document.getElementById('tabReportContent');
+    if (!el) return;
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    showToast('Report copied to clipboard!', 'success');
 }
 
 // ---- AI REPORT GENERATOR ----

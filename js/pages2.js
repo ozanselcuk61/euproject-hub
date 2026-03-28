@@ -408,6 +408,7 @@ function renderTasks(container) {
         <div class="page-header">\
             <h1>Tasks</h1>\
             <div class="page-header-actions">\
+                <button class="btn btn-secondary" onclick="generateTabReport(\'tasks\')"><i class="fas fa-robot"></i> AI Report</button>\
                 <button class="btn btn-primary" onclick="openAddTaskModal()"><i class="fas fa-plus"></i> Add Task</button>\
             </div>\
         </div>\
