@@ -343,6 +343,22 @@ function handleAddWP() {
 }
 
 // ---- TASKS ----
+function getRemainingDays(dueDate) {
+    if (!dueDate) return null;
+    var now = new Date(); now.setHours(0,0,0,0);
+    var due = new Date(dueDate); due.setHours(0,0,0,0);
+    return Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+}
+
+function getRemainingLabel(dueDate) {
+    var days = getRemainingDays(dueDate);
+    if (days === null) return '';
+    if (days < 0) return '<span style="color:var(--danger);font-weight:600">' + Math.abs(days) + 'd overdue</span>';
+    if (days === 0) return '<span style="color:var(--warning);font-weight:600">Due today</span>';
+    if (days <= 3) return '<span style="color:var(--warning);font-weight:600">' + days + 'd left</span>';
+    return '<span style="color:var(--gray-500)">' + days + 'd left</span>';
+}
+
 function renderTasks(container) {
     var tasks = getCurrentTasks();
     var pending = tasks.filter(function(t) { return t.status === 'pending'; });
@@ -373,11 +389,11 @@ function renderTasks(container) {
         </div>\
         <div id="taskList" class="card hidden">\
             <div class="card-body" style="padding:0">\
-                <table class="data-table"><thead><tr><th>Task</th><th>WP</th><th>Assignee</th><th>Due Date</th><th>Priority</th><th>Status</th><th>Action</th></tr></thead>\
+                <table class="data-table"><thead><tr><th>Task</th><th>WP</th><th>Assignee</th><th>Due Date</th><th>Remaining</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>\
                 <tbody>' +
                     tasks.map(function(t, idx) {
                         var statusClass = t.status === 'in_progress' ? 'active' : t.status === 'completed' ? 'completed' : 'pending';
-                        return '<tr><td style="font-weight:500">' + t.title + '</td><td><span class="wp-number">' + t.wp + '</span></td><td><div class="task-assignee"><div class="task-assignee-avatar">' + (t.assigneeInitials || '?') + '</div>' + (t.assignee || '').split(' ')[0] + '</div></td><td>' + formatDate(t.due) + '</td><td><span class="status-badge ' + (t.priority === 'high' ? 'status-overdue' : t.priority === 'medium' ? 'status-pending' : 'status-draft') + '">' + t.priority + '</span></td><td><span class="status-badge status-' + statusClass + '">' + t.status.replace('_', ' ') + '</span></td><td><button class="btn btn-sm btn-ghost" onclick="cycleTaskStatus(' + idx + ')"><i class="fas fa-arrow-right"></i></button></td></tr>';
+                        return '<tr><td style="font-weight:500">' + t.title + '</td><td><span class="wp-number">' + t.wp + '</span></td><td><div class="task-assignee"><div class="task-assignee-avatar">' + (t.assigneeInitials || '?') + '</div>' + (t.assignee || '').split(' ')[0] + '</div></td><td>' + formatDate(t.due) + '</td><td style="font-size:12px">' + getRemainingLabel(t.due) + '</td><td><span class="status-badge ' + (t.priority === 'high' ? 'status-overdue' : t.priority === 'medium' ? 'status-pending' : 'status-draft') + '">' + t.priority + '</span></td><td><span class="status-badge status-' + statusClass + '">' + t.status.replace('_', ' ') + '</span></td><td style="white-space:nowrap"><button class="btn btn-sm btn-ghost" onclick="openEditTaskModal(' + idx + ')" title="Edit"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-ghost" onclick="cycleTaskStatus(' + idx + ')" title="Change status"><i class="fas fa-arrow-right"></i></button><button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteTask(' + idx + ')" title="Delete"><i class="fas fa-trash"></i></button></td></tr>';
                     }).join('') +
                 '</tbody></table>\
             </div>\
@@ -385,7 +401,9 @@ function renderTasks(container) {
 }
 
 function renderTaskCard(t) {
-    return '<div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;margin-bottom:10px;' + (t.priority === 'high' ? 'border-left:3px solid var(--danger)' : '') + '">\
+    var idx = getCurrentTasks().indexOf(t);
+    var remaining = getRemainingLabel(t.due);
+    return '<div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;margin-bottom:10px;cursor:pointer;' + (t.priority === 'high' ? 'border-left:3px solid var(--danger)' : '') + '" onclick="openEditTaskModal(' + idx + ')">\
         <div style="font-size:13px;font-weight:600;color:var(--gray-800);margin-bottom:6px">' + t.title + '</div>\
         <div style="display:flex;justify-content:space-between;align-items:center">\
             <span class="wp-number" style="font-size:10px">' + t.wp + '</span>\
@@ -394,6 +412,7 @@ function renderTaskCard(t) {
                 <span style="font-size:11px;color:var(--gray-400)">' + formatDate(t.due) + '</span>\
             </div>\
         </div>\
+        ' + (remaining ? '<div style="margin-top:6px;font-size:11px">' + remaining + '</div>' : '') + '\
     </div>';
 }
 
@@ -421,6 +440,17 @@ function cycleTaskStatus(idx) {
     });
 }
 
+function deleteTask(idx) {
+    if (!confirm('Delete this task?')) return;
+    var pid = AppState.currentProjectId;
+    Tasks[pid].splice(idx, 1);
+    updateProjectField(pid, 'tasks', Tasks[pid]).then(function() {
+        navigateTo('tasks');
+        updateSidebarBadges();
+        showToast('Task deleted.', 'info');
+    });
+}
+
 function openAddTaskModal() {
     var wps = getCurrentWPs();
     var partners = getCurrentPartners();
@@ -429,6 +459,7 @@ function openAddTaskModal() {
 
     openModal('Add New Task', '\
         <div class="form-group"><label class="form-label">Task Title</label><input type="text" class="form-input" id="atTitle" placeholder="What needs to be done?"></div>\
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" rows="2" id="atDesc" placeholder="Task details..."></textarea></div>\
         <div class="form-row">\
             <div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="atWP">' + wpOptions + '</select></div>\
             <div class="form-group"><label class="form-label">Assignee</label><select class="form-select" id="atAssignee">' + assigneeOptions + '</select></div>\
@@ -442,6 +473,7 @@ function openAddTaskModal() {
 
 function handleAddTask() {
     var title = document.getElementById('atTitle').value.trim();
+    var desc = document.getElementById('atDesc').value.trim();
     var wp = document.getElementById('atWP').value;
     var assignee = document.getElementById('atAssignee').value;
     var due = document.getElementById('atDue').value;
@@ -455,12 +487,14 @@ function handleAddTask() {
     var task = {
         id: Date.now(),
         title: title,
+        description: desc,
         wp: wp || '',
         assignee: assignee || 'Unassigned',
         assigneeInitials: initials,
         due: due || '',
         status: 'pending',
-        priority: priority
+        priority: priority,
+        createdAt: new Date().toISOString()
     };
 
     var pid = AppState.currentProjectId;
@@ -484,7 +518,80 @@ function handleAddTask() {
     });
 }
 
+function openEditTaskModal(idx) {
+    var pid = AppState.currentProjectId;
+    var t = Tasks[pid][idx];
+    if (!t) return;
+
+    var wps = getCurrentWPs();
+    var partners = getCurrentPartners();
+    var wpOptions = wps.length > 0 ? wps.map(function(w) { return '<option value="' + w.number + '"' + (w.number === t.wp ? ' selected' : '') + '>' + w.number + ' - ' + w.title + '</option>'; }).join('') : '<option value="">No WPs</option>';
+    var assigneeOptions = partners.length > 0 ? partners.map(function(p) { return '<option value="' + p.contact + '"' + (p.contact === t.assignee ? ' selected' : '') + '>' + p.contact + ' (' + p.name + ')</option>'; }).join('') : '<option value="">No partners</option>';
+    var statusOptions = '<option value="pending"' + (t.status === 'pending' ? ' selected' : '') + '>Pending</option><option value="in_progress"' + (t.status === 'in_progress' ? ' selected' : '') + '>In Progress</option><option value="completed"' + (t.status === 'completed' ? ' selected' : '') + '>Completed</option>';
+    var priorityOptions = '<option value="low"' + (t.priority === 'low' ? ' selected' : '') + '>Low</option><option value="medium"' + (t.priority === 'medium' ? ' selected' : '') + '>Medium</option><option value="high"' + (t.priority === 'high' ? ' selected' : '') + '>High</option>';
+    var remaining = getRemainingLabel(t.due);
+
+    openModal('Edit Task', '\
+        ' + (remaining ? '<div style="margin-bottom:16px;padding:8px 12px;background:var(--gray-50);border-radius:var(--radius);font-size:13px"><i class="fas fa-clock"></i> ' + remaining + '</div>' : '') + '\
+        <div class="form-group"><label class="form-label">Task Title</label><input type="text" class="form-input" id="etTitle" value="' + (t.title || '').replace(/"/g, '&quot;') + '"></div>\
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" rows="2" id="etDesc">' + (t.description || '') + '</textarea></div>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="etWP">' + wpOptions + '</select></div>\
+            <div class="form-group"><label class="form-label">Assignee</label><select class="form-select" id="etAssignee">' + assigneeOptions + '</select></div>\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-input" id="etDue" value="' + (t.due || '') + '"></div>\
+            <div class="form-group"><label class="form-label">Priority</label><select class="form-select" id="etPriority">' + priorityOptions + '</select></div>\
+        </div>\
+        <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="etStatus">' + statusOptions + '</select></div>\
+    ', '<button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="deleteTask(' + idx + ')"><i class="fas fa-trash"></i> Delete</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleEditTask(' + idx + ')"><i class="fas fa-save"></i> Save Changes</button>');
+}
+
+function handleEditTask(idx) {
+    var pid = AppState.currentProjectId;
+    var t = Tasks[pid][idx];
+    if (!t) return;
+
+    t.title = document.getElementById('etTitle').value.trim();
+    t.description = document.getElementById('etDesc').value.trim();
+    t.wp = document.getElementById('etWP').value;
+    t.assignee = document.getElementById('etAssignee').value;
+    t.due = document.getElementById('etDue').value;
+    t.priority = document.getElementById('etPriority').value;
+    t.status = document.getElementById('etStatus').value;
+
+    var assigneeNames = t.assignee ? t.assignee.split(' ') : ['?'];
+    t.assigneeInitials = assigneeNames.length >= 2 ? (assigneeNames[0][0] + assigneeNames[1][0]).toUpperCase() : (assigneeNames[0][0] || '?').toUpperCase();
+
+    var btn = document.querySelector('#modalFooter .btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
+
+    updateProjectField(pid, 'tasks', Tasks[pid]).then(function(result) {
+        if (result.success) {
+            closeModal();
+            navigateTo('tasks');
+            updateSidebarBadges();
+            showToast('Task updated!', 'success');
+        } else {
+            showToast('Error saving.', 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Changes'; }
+        }
+    });
+}
+
 // ---- DOCUMENTS ----
+var currentFolderId = null;
+
+function getFileType(filename) {
+    var ext = filename.split('.').pop().toLowerCase();
+    if (['pdf'].indexOf(ext) !== -1) return 'pdf';
+    if (['doc', 'docx'].indexOf(ext) !== -1) return 'doc';
+    if (['xls', 'xlsx', 'csv'].indexOf(ext) !== -1) return 'xls';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'].indexOf(ext) !== -1) return 'img';
+    if (['zip', 'rar', '7z'].indexOf(ext) !== -1) return 'generic';
+    return 'other';
+}
+
 function renderDocuments(container) {
     var docs = getCurrentDocuments();
 
@@ -495,12 +602,14 @@ function renderDocuments(container) {
                 <button class="btn btn-secondary" onclick="openCreateFolderModal()"><i class="fas fa-folder-plus"></i> New Folder</button>\
             </div>\
         </div>\
+        <div style="margin-bottom:12px;padding:10px 14px;background:var(--gray-50);border-radius:var(--radius);font-size:12px;color:var(--gray-500)"><i class="fas fa-info-circle"></i> Max file size: 10 MB per file. Supported: PDF, Word, Excel, Images, ZIP</div>\
         <div id="docBreadcrumb" style="margin-bottom:20px;font-size:14px">\
             <a href="#" onclick="renderDocFolders();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>\
         </div>\
         <div id="docContent"></div>';
 
     window.renderDocFolders = function() {
+        currentFolderId = null;
         document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="renderDocFolders();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>';
         var currentDocs = getCurrentDocuments();
         var content = document.getElementById('docContent');
@@ -514,22 +623,109 @@ function renderDocuments(container) {
     };
 
     window.renderDocFiles = function(folderId) {
+        currentFolderId = folderId;
         var currentDocs = getCurrentDocuments();
         var folder = currentDocs.folders.find(function(f) { return f.id === folderId; });
         if (!folder) return;
-        var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', xls: 'fa-file-excel', img: 'fa-file-image', generic: 'fa-file-archive' };
+        var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', xls: 'fa-file-excel', img: 'fa-file-image', generic: 'fa-file-archive', other: 'fa-file' };
         document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="renderDocFolders();return false"><i class="fas fa-home"></i> All Files</a> <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <span style="font-weight:600">' + folder.name + '</span>';
         var content = document.getElementById('docContent');
+
+        var uploadBtn = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="triggerFileUpload(\'' + folderId + '\')"><i class="fas fa-upload"></i> Upload File</button><input type="file" id="fileUploadInput" style="display:none" multiple onchange="handleFileUpload(\'' + folderId + '\',this.files)"></div>';
+
         if (folder.files.length === 0) {
-            content.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center"><p style="color:var(--gray-400)">This folder is empty.</p></div>';
+            content.innerHTML = uploadBtn + '<div class="empty-state" style="padding:40px 20px;text-align:center;border:2px dashed var(--gray-200);border-radius:var(--radius)"><i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--gray-300);margin-bottom:12px"></i><p style="color:var(--gray-400)">This folder is empty. Upload files to get started.</p></div>';
         } else {
-            content.innerHTML = '<div class="file-grid">' + folder.files.map(function(f) {
-                return '<div class="file-card"><div class="file-icon ' + f.type + '"><i class="fas ' + (iconMap[f.type] || 'fa-file') + '"></i></div><div class="file-name">' + f.name + '</div><div class="file-meta">' + f.size + ' &middot; ' + f.uploaded + '</div><div style="font-size:10px;color:var(--gray-400);margin-top:2px">' + f.by + '</div></div>';
+            content.innerHTML = uploadBtn + '<div class="file-grid">' + folder.files.map(function(f, fIdx) {
+                return '<div class="file-card" style="position:relative">' +
+                    (f.url ? '<a href="' + f.url + '" target="_blank" style="text-decoration:none;color:inherit">' : '') +
+                    '<div class="file-icon ' + f.type + '"><i class="fas ' + (iconMap[f.type] || 'fa-file') + '"></i></div><div class="file-name">' + f.name + '</div><div class="file-meta">' + f.size + ' &middot; ' + f.uploaded + '</div><div style="font-size:10px;color:var(--gray-400);margin-top:2px">' + (f.by || '') + '</div>' +
+                    (f.url ? '</a>' : '') +
+                    '<button class="btn btn-sm btn-ghost" style="position:absolute;top:4px;right:4px;color:var(--danger);padding:2px 6px" onclick="event.stopPropagation();deleteDocFile(\'' + folderId + '\',' + fIdx + ')" title="Delete"><i class="fas fa-trash"></i></button></div>';
             }).join('') + '</div>';
         }
     };
 
     renderDocFolders();
+}
+
+function triggerFileUpload(folderId) {
+    document.getElementById('fileUploadInput').click();
+}
+
+function handleFileUpload(folderId, files) {
+    if (!files || files.length === 0) return;
+    var pid = AppState.currentProjectId;
+    var currentDocs = Documents[pid];
+    var folder = currentDocs.folders.find(function(f) { return f.id === folderId; });
+    if (!folder) return;
+
+    var uploadPromises = [];
+    for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        if (file.size > 10 * 1024 * 1024) {
+            showToast(file.name + ' is too large (max 10MB).', 'error');
+            continue;
+        }
+
+        // Check for existing file with same name (version warning)
+        var existingIdx = folder.files.findIndex(function(f) { return f.name === file.name; });
+        if (existingIdx !== -1) {
+            if (!confirm(file.name + ' already exists. Replace with new version?')) continue;
+            // Remove old file reference
+            if (folder.files[existingIdx].storagePath) {
+                deleteStorageFile(folder.files[existingIdx].storagePath);
+            }
+            folder.files.splice(existingIdx, 1);
+        }
+
+        uploadPromises.push(uploadFile(pid, folderId, file));
+    }
+
+    if (uploadPromises.length === 0) return;
+    showToast('Uploading ' + uploadPromises.length + ' file(s)...', 'info');
+
+    Promise.all(uploadPromises).then(function(results) {
+        var successCount = 0;
+        results.forEach(function(result) {
+            if (result.success) {
+                folder.files.push({
+                    id: 'f' + Date.now() + Math.random().toString(36).substr(2, 4),
+                    name: result.name,
+                    type: getFileType(result.name),
+                    size: result.size,
+                    uploaded: new Date().toISOString().split('T')[0],
+                    by: AppState.currentUser ? AppState.currentUser.name : 'Unknown',
+                    url: result.url,
+                    storagePath: result.path
+                });
+                successCount++;
+            } else {
+                showToast('Failed: ' + result.error, 'error');
+            }
+        });
+
+        if (successCount > 0) {
+            updateProjectField(pid, 'documents', currentDocs).then(function() {
+                renderDocFiles(folderId);
+                showToast(successCount + ' file(s) uploaded!', 'success');
+            });
+        }
+    });
+}
+
+function deleteDocFile(folderId, fileIdx) {
+    if (!confirm('Delete this file?')) return;
+    var pid = AppState.currentProjectId;
+    var folder = Documents[pid].folders.find(function(f) { return f.id === folderId; });
+    if (!folder) return;
+    var file = folder.files[fileIdx];
+    if (file && file.storagePath) deleteStorageFile(file.storagePath);
+    folder.files.splice(fileIdx, 1);
+    updateProjectField(pid, 'documents', Documents[pid]).then(function() {
+        renderDocFiles(folderId);
+        showToast('File deleted.', 'info');
+    });
 }
 
 function openCreateFolderModal() {
