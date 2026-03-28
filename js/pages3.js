@@ -10,58 +10,269 @@ function renderBudget(container) {
     var partners = getCurrentPartners();
     var wps = getCurrentWPs();
     var budget = getCurrentBudget();
-    var totalSpent = partners.reduce(function(s, p) { return s + (p.spent || 0); }, 0);
-    var remaining = project.totalBudget - totalSpent;
 
-    var wpRows = (budget.wpStatus && budget.wpStatus.length > 0 ? budget.wpStatus : wps.map(function(w) { return { wp: w.number, allocated: w.budget, completionStatus: w.progress, paymentReleased: w.progress === 100 }; }));
+    // Calculate totals from detailed entries or partner-level
+    var entries = budget.detailedEntries || [];
+    var totalPlanned = 0; var totalActual = 0;
+    partners.forEach(function(p) {
+        totalPlanned += (p.budget || 0);
+        totalActual += (p.spent || 0);
+    });
+    var difference = totalPlanned - totalActual;
 
     container.innerHTML = '\
         <div class="page-header">\
             <h1>Budget & Finance</h1>\
             <div class="page-header-actions">\
+                <button class="btn btn-secondary" onclick="openBudgetEntryModal()"><i class="fas fa-edit"></i> Edit Budget Plan</button>\
+                <button class="btn btn-secondary" onclick="openTimesheetModal()"><i class="fas fa-clock"></i> Timesheet</button>\
                 <button class="btn btn-primary" onclick="openTransferModal()"><i class="fas fa-exchange-alt"></i> Record Transfer</button>\
             </div>\
         </div>\
         <div class="budget-summary">\
             <div class="budget-card"><div class="budget-amount total">' + formatCurrency(project.totalBudget) + '</div><div class="budget-label">Total Grant (Lump Sum)</div></div>\
-            <div class="budget-card"><div class="budget-amount spent">' + formatCurrency(totalSpent) + '</div><div class="budget-label">Total Utilized (' + (project.totalBudget > 0 ? Math.round(totalSpent / project.totalBudget * 100) : 0) + '%)</div></div>\
-            <div class="budget-card"><div class="budget-amount remaining">' + formatCurrency(remaining) + '</div><div class="budget-label">Remaining</div></div>\
+            <div class="budget-card"><div class="budget-amount spent">' + formatCurrency(totalActual) + '</div><div class="budget-label">Actual Spent (' + (totalPlanned > 0 ? Math.round(totalActual / totalPlanned * 100) : 0) + '%)</div></div>\
+            <div class="budget-card"><div class="budget-amount remaining" style="color:' + (difference >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + (difference >= 0 ? '+' : '') + formatCurrency(difference) + '</div><div class="budget-label">Difference (Planned - Actual)</div></div>\
         </div>\
-        <div class="content-grid-equal mb-6">\
-            <div class="card">\
-                <div class="card-header"><h2>Budget per Work Package</h2></div>\
-                <div class="card-body" style="padding:0">\
-                    <table class="data-table"><thead><tr><th>Work Package</th><th>Allocated</th><th>Completion</th><th>Payment</th></tr></thead><tbody>' +
-                    (wpRows.length > 0 ? wpRows.map(function(ws) {
-                        return '<tr><td><span class="wp-number">' + ws.wp + '</span></td><td style="font-weight:600">' + formatCurrency(ws.allocated) + '</td><td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bar" style="flex:1"><div class="progress-fill ' + (ws.completionStatus === 100 ? 'success' : '') + '" style="width:' + ws.completionStatus + '%"></div></div><span style="font-size:12px;font-weight:600">' + ws.completionStatus + '%</span></div></td><td>' + (ws.paymentReleased ? '<span class="status-badge status-completed">Released</span>' : '<span class="status-badge status-pending">Pending</span>') + '</td></tr>';
-                    }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No work packages yet</td></tr>') +
-                    '</tbody></table>\
-                </div>\
-                <div class="card-footer"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>Total</span><span>' + formatCurrency(project.totalBudget) + '</span></div></div>\
-            </div>\
-            <div class="card">\
-                <div class="card-header"><h2>Budget per Partner</h2></div>\
-                <div class="card-body" style="padding:0">\
-                    <table class="data-table"><thead><tr><th>Partner</th><th>Allocated</th><th>Spent</th><th>Utilization</th></tr></thead><tbody>' +
-                    (partners.length > 0 ? partners.map(function(p) {
-                        var util = p.budget > 0 ? Math.round((p.spent || 0) / p.budget * 100) : 0;
-                        return '<tr><td><div style="display:flex;align-items:center;gap:8px"><div class="task-assignee-avatar">' + (p.initials || '?') + '</div><span style="font-weight:500;font-size:13px">' + (p.name.length > 25 ? p.name.substring(0, 25) + '...' : p.name) + '</span></div></td><td style="font-weight:600">' + formatCurrency(p.budget) + '</td><td>' + formatCurrency(p.spent || 0) + '</td><td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bar" style="flex:1"><div class="progress-fill" style="width:' + util + '%"></div></div><span style="font-size:12px;font-weight:600">' + util + '%</span></div></td></tr>';
-                    }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No partners yet</td></tr>') +
-                    '</tbody></table>\
-                </div>\
-            </div>\
-        </div>' +
-        (budget.partnerTransfers && budget.partnerTransfers.length > 0 ? '\
+        <div class="tabs" id="budgetTabs">\
+            <button class="tab-btn active" onclick="showBudgetTab(\'overview\',this)">Overview</button>\
+            <button class="tab-btn" onclick="showBudgetTab(\'detailed\',this)">Detailed per Partner/WP</button>\
+            <button class="tab-btn" onclick="showBudgetTab(\'transfers\',this)">Transfers</button>\
+        </div>\
+        <div id="budgetOverview">' + renderBudgetOverview(partners, wps, budget, project) + '</div>\
+        <div id="budgetDetailed" class="hidden">' + renderBudgetDetailed(partners, wps, budget) + '</div>\
+        <div id="budgetTransfers" class="hidden">' + renderBudgetTransfers(budget) + '</div>';
+}
+
+function showBudgetTab(tab, btn) {
+    document.querySelectorAll('#budgetTabs .tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    document.getElementById('budgetOverview').className = tab === 'overview' ? '' : 'hidden';
+    document.getElementById('budgetDetailed').className = tab === 'detailed' ? '' : 'hidden';
+    document.getElementById('budgetTransfers').className = tab === 'transfers' ? '' : 'hidden';
+}
+
+function renderBudgetOverview(partners, wps, budget, project) {
+    return '<div class="content-grid-equal mb-6">\
         <div class="card">\
-            <div class="card-header"><h2><i class="fas fa-exchange-alt"></i> Partner Transfers</h2></div>\
+            <div class="card-header"><h2>Budget per Work Package</h2></div>\
             <div class="card-body" style="padding:0">\
-                <table class="data-table"><thead><tr><th>Partner</th><th>Amount</th><th>Date</th><th>Type</th><th>Status</th></tr></thead><tbody>' +
-                budget.partnerTransfers.map(function(t) {
-                    return '<tr><td style="font-weight:500">' + t.partner + '</td><td style="font-weight:600">' + formatCurrency(t.amount) + '</td><td>' + formatDate(t.date) + '</td><td>' + t.type + '</td><td><span class="status-badge status-' + (t.status === 'completed' ? 'completed' : 'pending') + '">' + t.status + '</span></td></tr>';
-                }).join('') +
+                <table class="data-table"><thead><tr><th>WP</th><th>Allocated</th><th>Completion</th><th>Status</th></tr></thead><tbody>' +
+                (wps.length > 0 ? wps.map(function(w) {
+                    return '<tr><td><span class="wp-number">' + w.number + '</span></td><td style="font-weight:600">' + formatCurrency(w.budget) + '</td><td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bar" style="flex:1"><div class="progress-fill ' + (w.progress === 100 ? 'success' : '') + '" style="width:' + w.progress + '%"></div></div><span style="font-size:12px;font-weight:600">' + w.progress + '%</span></div></td><td>' + (w.progress === 100 ? '<span class="status-badge status-completed">Released</span>' : '<span class="status-badge status-pending">Pending</span>') + '</td></tr>';
+                }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No WPs</td></tr>') +
                 '</tbody></table>\
             </div>\
-        </div>' : '');
+        </div>\
+        <div class="card">\
+            <div class="card-header"><h2>Budget per Partner</h2></div>\
+            <div class="card-body" style="padding:0">\
+                <table class="data-table"><thead><tr><th>Partner</th><th>Planned</th><th>Actual</th><th>Difference</th></tr></thead><tbody>' +
+                (partners.length > 0 ? partners.map(function(p) {
+                    var diff = (p.budget || 0) - (p.spent || 0);
+                    var diffColor = diff >= 0 ? 'var(--success)' : 'var(--danger)';
+                    return '<tr><td><div style="display:flex;align-items:center;gap:8px"><div class="task-assignee-avatar">' + (p.initials || '?') + '</div><span style="font-weight:500;font-size:13px">' + (p.name.length > 22 ? p.name.substring(0, 22) + '..' : p.name) + '</span></div></td><td style="font-weight:600">' + formatCurrency(p.budget) + '</td><td>' + formatCurrency(p.spent || 0) + '</td><td style="font-weight:700;color:' + diffColor + '">' + (diff >= 0 ? '+' : '') + formatCurrency(diff) + '</td></tr>';
+                }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No partners</td></tr>') +
+                '</tbody></table>\
+            </div>\
+        </div>\
+    </div>';
+}
+
+function renderBudgetDetailed(partners, wps, budget) {
+    if (partners.length === 0 || wps.length === 0) {
+        return '<div class="card"><div class="card-body" style="text-align:center;color:var(--gray-400);padding:40px">Add partners and work packages first to create a detailed budget plan.</div></div>';
+    }
+
+    var entries = budget.detailedEntries || {};
+
+    var html = '<div class="card"><div class="card-header"><h2>Detailed Budget: Planned vs Actual per Partner per WP</h2></div><div class="card-body" style="padding:0;overflow-x:auto"><table class="data-table" style="min-width:800px"><thead><tr><th>Partner</th>';
+    wps.forEach(function(w) { html += '<th colspan="2" style="text-align:center;border-bottom:2px solid var(--primary)">' + w.number + '</th>'; });
+    html += '<th colspan="2" style="text-align:center;font-weight:700">TOTAL</th></tr><tr><th></th>';
+    wps.forEach(function() { html += '<th style="font-size:11px;color:var(--gray-500)">Planned</th><th style="font-size:11px;color:var(--gray-500)">Actual</th>'; });
+    html += '<th style="font-size:11px;color:var(--gray-500)">Planned</th><th style="font-size:11px;color:var(--gray-500)">Actual</th></tr></thead><tbody>';
+
+    var wpTotalsPlanned = {}; var wpTotalsActual = {};
+    wps.forEach(function(w) { wpTotalsPlanned[w.number] = 0; wpTotalsActual[w.number] = 0; });
+
+    partners.forEach(function(p, pIdx) {
+        var rowPlannedTotal = 0; var rowActualTotal = 0;
+        html += '<tr><td style="font-weight:500;font-size:13px">' + (p.name.length > 20 ? p.name.substring(0, 20) + '..' : p.name) + '</td>';
+        wps.forEach(function(w) {
+            var key = p.name + '|' + w.number;
+            var planned = (entries[key] && entries[key].planned) || 0;
+            var actual = (entries[key] && entries[key].actual) || 0;
+            wpTotalsPlanned[w.number] += planned;
+            wpTotalsActual[w.number] += actual;
+            rowPlannedTotal += planned; rowActualTotal += actual;
+            var diff = planned - actual;
+            html += '<td style="font-size:12px;text-align:right">' + (planned > 0 ? formatCurrency(planned) : '-') + '</td>';
+            html += '<td style="font-size:12px;text-align:right;cursor:pointer;color:var(--primary)" onclick="openActualEntryModal(\'' + key.replace(/'/g, "\\'") + '\',' + planned + ',' + actual + ')" title="Click to enter actual">' + (actual > 0 ? formatCurrency(actual) : '<i class=\'fas fa-edit\' style=\'font-size:10px\'></i>') + '</td>';
+        });
+        var rowDiff = rowPlannedTotal - rowActualTotal;
+        html += '<td style="font-weight:600;font-size:12px;text-align:right">' + formatCurrency(rowPlannedTotal) + '</td>';
+        html += '<td style="font-weight:600;font-size:12px;text-align:right;color:' + (rowDiff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + formatCurrency(rowActualTotal) + '</td></tr>';
+    });
+
+    // Totals row
+    html += '<tr style="background:var(--gray-50);font-weight:700"><td>TOTAL</td>';
+    var grandPlanned = 0; var grandActual = 0;
+    wps.forEach(function(w) {
+        grandPlanned += wpTotalsPlanned[w.number];
+        grandActual += wpTotalsActual[w.number];
+        html += '<td style="text-align:right;font-size:12px">' + formatCurrency(wpTotalsPlanned[w.number]) + '</td>';
+        html += '<td style="text-align:right;font-size:12px">' + formatCurrency(wpTotalsActual[w.number]) + '</td>';
+    });
+    html += '<td style="text-align:right;font-size:12px">' + formatCurrency(grandPlanned) + '</td>';
+    html += '<td style="text-align:right;font-size:12px;color:' + (grandPlanned - grandActual >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + formatCurrency(grandActual) + '</td></tr>';
+
+    html += '</tbody></table></div><div class="card-footer"><button class="btn btn-secondary btn-sm" onclick="openBudgetEntryModal()"><i class="fas fa-edit"></i> Edit Planned Budget</button></div></div>';
+    return html;
+}
+
+function renderBudgetTransfers(budget) {
+    if (!budget.partnerTransfers || budget.partnerTransfers.length === 0) {
+        return '<div class="card"><div class="card-body" style="text-align:center;color:var(--gray-400);padding:40px">No transfers recorded yet.</div></div>';
+    }
+    return '<div class="card"><div class="card-header"><h2><i class="fas fa-exchange-alt"></i> Partner Transfers</h2></div><div class="card-body" style="padding:0"><table class="data-table"><thead><tr><th>Partner</th><th>Amount</th><th>Date</th><th>Type</th><th>Status</th></tr></thead><tbody>' +
+        budget.partnerTransfers.map(function(t) {
+            return '<tr><td style="font-weight:500">' + t.partner + '</td><td style="font-weight:600">' + formatCurrency(t.amount) + '</td><td>' + formatDate(t.date) + '</td><td>' + t.type + '</td><td><span class="status-badge status-' + (t.status === 'completed' ? 'completed' : 'pending') + '">' + t.status + '</span></td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+}
+
+function openBudgetEntryModal() {
+    var partners = getCurrentPartners();
+    var wps = getCurrentWPs();
+    var budget = getCurrentBudget();
+    var entries = budget.detailedEntries || {};
+
+    if (partners.length === 0 || wps.length === 0) {
+        alert('Please add partners and work packages first.');
+        return;
+    }
+
+    var rows = '';
+    partners.forEach(function(p) {
+        wps.forEach(function(w) {
+            var key = p.name + '|' + w.number;
+            var planned = (entries[key] && entries[key].planned) || 0;
+            rows += '<tr><td style="font-size:12px">' + p.name.substring(0, 20) + '</td><td><span class="wp-number">' + w.number + '</span></td><td><input type="number" class="form-input budgetPlannedInput" data-key="' + key + '" value="' + planned + '" style="padding:4px 8px;font-size:12px;width:100px"></td></tr>';
+        });
+    });
+
+    openModal('Edit Planned Budget', '\
+        <p style="color:var(--gray-500);font-size:13px;margin-bottom:16px">Enter the planned budget for each partner per work package as agreed at project start.</p>\
+        <div style="max-height:400px;overflow-y:auto"><table class="data-table"><thead><tr><th>Partner</th><th>WP</th><th>Planned (&euro;)</th></tr></thead><tbody>' + rows + '</tbody></table></div>\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveBudgetPlan()"><i class="fas fa-save"></i> Save Plan</button>', true);
+}
+
+function saveBudgetPlan() {
+    var pid = AppState.currentProjectId;
+    if (!BudgetTracking[pid]) BudgetTracking[pid] = { wpStatus: [], partnerTransfers: [], detailedEntries: {} };
+    if (!BudgetTracking[pid].detailedEntries) BudgetTracking[pid].detailedEntries = {};
+
+    document.querySelectorAll('.budgetPlannedInput').forEach(function(input) {
+        var key = input.dataset.key;
+        var val = parseInt(input.value) || 0;
+        if (!BudgetTracking[pid].detailedEntries[key]) BudgetTracking[pid].detailedEntries[key] = {};
+        BudgetTracking[pid].detailedEntries[key].planned = val;
+    });
+
+    updateProjectField(pid, 'budgetTracking', BudgetTracking[pid]).then(function() {
+        closeModal();
+        navigateTo('budget');
+        showToast('Budget plan saved!', 'success');
+    });
+}
+
+function openActualEntryModal(key, planned, actual) {
+    openModal('Enter Actual Expenditure', '\
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px"><strong>' + key.replace('|', '</strong> &rarr; <strong>') + '</strong></p>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Planned</label><input type="text" class="form-input" value="' + formatCurrency(planned) + '" disabled></div>\
+            <div class="form-group"><label class="form-label">Actual Spent (&euro;)</label><input type="number" class="form-input" id="aeActual" value="' + actual + '"></div>\
+        </div>\
+        <div style="padding:12px;background:' + (planned - actual >= 0 ? 'var(--success-light)' : '#fef2f2') + ';border-radius:var(--radius);font-size:13px">\
+            Difference: <strong style="color:' + (planned - actual >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + (planned - actual >= 0 ? '+' : '') + formatCurrency(planned - actual) + '</strong>\
+        </div>\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveActualEntry(\'' + key.replace(/'/g, "\\'") + '\')"><i class="fas fa-save"></i> Save</button>');
+
+    // Live update difference
+    document.getElementById('aeActual').addEventListener('input', function() {
+        var newActual = parseInt(this.value) || 0;
+        var diff = planned - newActual;
+        var diffEl = this.closest('.modal-body').querySelector('div[style*="padding:12px"]');
+        if (diffEl) {
+            diffEl.style.background = diff >= 0 ? 'var(--success-light)' : '#fef2f2';
+            diffEl.innerHTML = 'Difference: <strong style="color:' + (diff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + (diff >= 0 ? '+' : '') + formatCurrency(diff) + '</strong>';
+        }
+    });
+}
+
+function saveActualEntry(key) {
+    var pid = AppState.currentProjectId;
+    var actual = parseInt(document.getElementById('aeActual').value) || 0;
+    if (!BudgetTracking[pid]) BudgetTracking[pid] = { wpStatus: [], partnerTransfers: [], detailedEntries: {} };
+    if (!BudgetTracking[pid].detailedEntries) BudgetTracking[pid].detailedEntries = {};
+    if (!BudgetTracking[pid].detailedEntries[key]) BudgetTracking[pid].detailedEntries[key] = {};
+    BudgetTracking[pid].detailedEntries[key].actual = actual;
+
+    updateProjectField(pid, 'budgetTracking', BudgetTracking[pid]).then(function() {
+        closeModal();
+        navigateTo('budget');
+        showToast('Actual expenditure saved!', 'success');
+    });
+}
+
+function openTimesheetModal() {
+    var partners = getCurrentPartners();
+    var pid = AppState.currentProjectId;
+    var budget = getCurrentBudget();
+    var timesheets = budget.timesheets || [];
+
+    var existingRows = timesheets.map(function(ts, idx) {
+        return '<tr><td>' + ts.person + '</td><td>' + ts.partner + '</td><td>' + ts.wp + '</td><td>' + ts.hours + 'h</td><td>' + ts.period + '</td><td>' + ts.description + '</td></tr>';
+    }).join('');
+
+    openModal('Timesheet', '\
+        <p style="color:var(--gray-500);font-size:13px;margin-bottom:16px">Record staff time spent on project activities.</p>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Person Name</label><input type="text" class="form-input" id="tsPerson" placeholder="Full name"></div>\
+            <div class="form-group"><label class="form-label">Partner</label><select class="form-select" id="tsPartner">' + partners.map(function(p) { return '<option>' + p.name + '</option>'; }).join('') + '</select></div>\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="tsWP">' + getCurrentWPs().map(function(w) { return '<option value="' + w.number + '">' + w.number + ' - ' + w.title + '</option>'; }).join('') + '</select></div>\
+            <div class="form-group"><label class="form-label">Hours</label><input type="number" class="form-input" id="tsHours" placeholder="40"></div>\
+        </div>\
+        <div class="form-row">\
+            <div class="form-group"><label class="form-label">Period</label><input type="text" class="form-input" id="tsPeriod" placeholder="e.g., March 2026"></div>\
+            <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="tsDesc" placeholder="Activities performed"></div>\
+        </div>\
+        <button class="btn btn-sm btn-secondary mb-4" onclick="addTimesheetEntry()"><i class="fas fa-plus"></i> Add Entry</button>\
+        ' + (timesheets.length > 0 ? '<div style="max-height:250px;overflow-y:auto"><table class="data-table"><thead><tr><th>Person</th><th>Partner</th><th>WP</th><th>Hours</th><th>Period</th><th>Description</th></tr></thead><tbody>' + existingRows + '</tbody></table></div>' : '<p style="color:var(--gray-400);font-size:13px">No timesheet entries yet.</p>') + '\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Close</button>', true);
+}
+
+function addTimesheetEntry() {
+    var person = document.getElementById('tsPerson').value.trim();
+    var partner = document.getElementById('tsPartner').value;
+    var wp = document.getElementById('tsWP').value;
+    var hours = parseInt(document.getElementById('tsHours').value) || 0;
+    var period = document.getElementById('tsPeriod').value.trim();
+    var desc = document.getElementById('tsDesc').value.trim();
+
+    if (!person || !hours) { alert('Enter person name and hours.'); return; }
+
+    var pid = AppState.currentProjectId;
+    if (!BudgetTracking[pid]) BudgetTracking[pid] = { wpStatus: [], partnerTransfers: [], detailedEntries: {}, timesheets: [] };
+    if (!BudgetTracking[pid].timesheets) BudgetTracking[pid].timesheets = [];
+
+    BudgetTracking[pid].timesheets.push({ person: person, partner: partner, wp: wp, hours: hours, period: period, description: desc, createdAt: new Date().toISOString() });
+
+    updateProjectField(pid, 'budgetTracking', BudgetTracking[pid]).then(function() {
+        showToast('Timesheet entry added!', 'success');
+        openTimesheetModal(); // Refresh
+    });
 }
 
 function openTransferModal() {
