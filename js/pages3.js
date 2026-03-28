@@ -137,10 +137,11 @@ function renderDissemination(container) {
             <div class="card-header"><h2>Dissemination Activities</h2></div>\
             <div class="card-body" style="padding:0">' +
             (diss.activities && diss.activities.length > 0 ? '\
-                <table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Activity</th><th>Partner</th><th>Reach</th></tr></thead><tbody>' +
+                <table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Activity</th><th>Partner</th><th>Reach</th><th>Link</th></tr></thead><tbody>' +
                 diss.activities.map(function(a) {
                     var typeClass = a.type === 'Event' ? 'status-active' : a.type === 'Publication' ? 'status-completed' : a.type === 'Social Media' ? 'status-pending' : 'status-draft';
-                    return '<tr><td>' + formatDate(a.date) + '</td><td><span class="status-badge ' + typeClass + '">' + a.type + '</span></td><td style="font-weight:500">' + a.title + '</td><td style="font-size:13px">' + (a.partner || '').split(' ').slice(-1)[0] + '</td><td style="font-weight:600">' + (a.reach || 0).toLocaleString() + '</td></tr>';
+                    var linkHtml = a.link ? '<a href="' + a.link + '" target="_blank" style="color:var(--primary)"><i class="fas fa-external-link-alt"></i></a>' : '';
+                    return '<tr><td>' + formatDate(a.date) + '</td><td><span class="status-badge ' + typeClass + '">' + a.type + '</span></td><td style="font-weight:500">' + a.title + '</td><td style="font-size:13px">' + (a.partner || '').split(' ').slice(-1)[0] + '</td><td style="font-weight:600">' + (a.reach || 0).toLocaleString() + '</td><td>' + linkHtml + '</td></tr>';
                 }).join('') +
                 '</tbody></table>' : '<div style="padding:40px;text-align:center;color:var(--gray-400)">No dissemination activities yet. Log your first activity!</div>') +
             '</div>\
@@ -162,6 +163,7 @@ function openAddDisseminationModal() {
             <div class="form-group"><label class="form-label">Partner</label><select class="form-select" id="adPartner">' + partnerOptions + '</select></div>\
             <div class="form-group"><label class="form-label">Estimated Reach</label><input type="number" class="form-input" id="adReach" placeholder="500"></div>\
         </div>\
+        <div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" id="adLink" placeholder="https://..."></div>\
     ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddDissemination()"><i class="fas fa-check"></i> Save Activity</button>');
 }
 
@@ -171,6 +173,7 @@ function handleAddDissemination() {
     var title = document.getElementById('adTitle').value.trim();
     var partner = document.getElementById('adPartner').value;
     var reach = parseInt(document.getElementById('adReach').value) || 0;
+    var link = document.getElementById('adLink').value.trim();
 
     if (!title) { alert('Please enter a title.'); return; }
 
@@ -183,7 +186,8 @@ function handleAddDissemination() {
         title: title,
         date: date || new Date().toISOString().split('T')[0],
         reach: reach,
-        partner: partner
+        partner: partner,
+        link: link
     });
 
     // Update summary
@@ -231,8 +235,10 @@ function renderMeetings(container) {
         return;
     }
 
-    list.innerHTML = meetings.map(function(m) {
-        return '<div class="meeting-card">\
+    list.innerHTML = meetings.map(function(m, idx) {
+        var hasMinutes = m.minutes && m.minutes.trim().length > 0;
+        var photoCount = (m.photos || []).length;
+        return '<div class="meeting-card" style="cursor:pointer" onclick="openMeetingDetail(' + idx + ')">\
             <div class="meeting-header">\
                 <div>\
                     <span class="status-badge ' + (m.status === 'completed' ? 'status-completed' : 'status-active') + '">' + m.status + '</span>\
@@ -242,9 +248,96 @@ function renderMeetings(container) {
             </div>\
             <h3>' + m.title + '</h3>\
             <div class="meeting-location"><i class="fas fa-map-marker-alt"></i> ' + m.location + '</div>\
-            ' + (m.agenda && m.agenda.length > 0 ? '<div style="margin-top:8px;font-size:12px;color:var(--gray-500)">' + m.agenda.length + ' agenda items</div>' : '') + '\
+            <div style="margin-top:8px;display:flex;gap:12px;font-size:12px;color:var(--gray-500)">\
+                ' + (m.agenda && m.agenda.length > 0 ? '<span><i class="fas fa-list"></i> ' + m.agenda.length + ' agenda items</span>' : '') + '\
+                ' + (hasMinutes ? '<span style="color:var(--success)"><i class="fas fa-file-alt"></i> Minutes</span>' : '') + '\
+                ' + (photoCount > 0 ? '<span style="color:var(--primary)"><i class="fas fa-camera"></i> ' + photoCount + ' photos</span>' : '') + '\
+            </div>\
         </div>';
     }).join('');
+}
+
+function openMeetingDetail(idx) {
+    var pid = AppState.currentProjectId;
+    var m = Meetings[pid][idx];
+    if (!m) return;
+    var photoHtml = '';
+    if (m.photos && m.photos.length > 0) {
+        photoHtml = '<h3 style="font-size:14px;font-weight:700;margin:20px 0 12px">Photos (' + m.photos.length + ')</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">' +
+            m.photos.map(function(p) {
+                return '<a href="' + p.url + '" target="_blank"><img src="' + p.url + '" style="width:100%;height:80px;object-fit:cover;border-radius:var(--radius);border:1px solid var(--gray-200)" alt="' + p.name + '"></a>';
+            }).join('') + '</div>';
+    }
+
+    openModal(m.title, '\
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">\
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius)"><strong style="font-size:12px;color:var(--gray-500)">Date</strong><br>' + formatDate(m.date) + '</div>\
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius)"><strong style="font-size:12px;color:var(--gray-500)">Location</strong><br>' + m.location + '</div>\
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius)"><strong style="font-size:12px;color:var(--gray-500)">Type</strong><br>' + m.type + '</div>\
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius)"><strong style="font-size:12px;color:var(--gray-500)">Status</strong><br><span class="status-badge status-' + (m.status === 'completed' ? 'completed' : 'active') + '">' + m.status + '</span></div>\
+        </div>\
+        ' + (m.agenda && m.agenda.length > 0 ? '<h3 style="font-size:14px;font-weight:700;margin-bottom:12px">Agenda</h3><ol style="padding-left:20px;margin-bottom:16px">' + m.agenda.map(function(a) { return '<li style="padding:4px 0;font-size:14px;color:var(--gray-600)">' + a + '</li>'; }).join('') + '</ol>' : '') + '\
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">Meeting Minutes</h3>\
+        <textarea class="form-textarea" rows="5" id="mmMinutes" placeholder="Enter meeting minutes here... These are important for the final report." style="margin-bottom:12px">' + (m.minutes || '') + '</textarea>\
+        <button class="btn btn-sm btn-secondary" onclick="saveMeetingMinutes(' + idx + ')"><i class="fas fa-save"></i> Save Minutes</button>\
+        ' + photoHtml + '\
+        <div style="margin-top:16px">\
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:8px">Upload Photos</h3>\
+            <input type="file" id="meetingPhotoInput" accept="image/*" multiple onchange="handleMeetingPhotoUpload(' + idx + ',this.files)">\
+        </div>\
+    ', '<button class="btn btn-secondary" onclick="closeModal()">Close</button><button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="deleteMeeting(' + idx + ')"><i class="fas fa-trash"></i> Delete</button>', true);
+}
+
+function saveMeetingMinutes(idx) {
+    var pid = AppState.currentProjectId;
+    var m = Meetings[pid][idx];
+    if (!m) return;
+    m.minutes = document.getElementById('mmMinutes').value;
+    updateProjectField(pid, 'meetings', Meetings[pid]).then(function() {
+        showToast('Minutes saved!', 'success');
+    });
+}
+
+function handleMeetingPhotoUpload(meetingIdx, files) {
+    if (!files || files.length === 0) return;
+    var pid = AppState.currentProjectId;
+    var m = Meetings[pid][meetingIdx];
+    if (!m) return;
+    if (!m.photos) m.photos = [];
+
+    var uploadPromises = [];
+    for (var i = 0; i < files.length; i++) {
+        if (files[i].size > 10 * 1024 * 1024) {
+            showToast(files[i].name + ' too large (max 10MB)', 'error');
+            continue;
+        }
+        uploadPromises.push(uploadFile(pid, 'meeting_' + m.id, files[i]));
+    }
+    if (uploadPromises.length === 0) return;
+    showToast('Uploading photos...', 'info');
+
+    Promise.all(uploadPromises).then(function(results) {
+        results.forEach(function(r) {
+            if (r.success) {
+                m.photos.push({ name: r.name, url: r.url, path: r.path });
+            }
+        });
+        updateProjectField(pid, 'meetings', Meetings[pid]).then(function() {
+            openMeetingDetail(meetingIdx);
+            showToast('Photos uploaded!', 'success');
+        });
+    });
+}
+
+function deleteMeeting(idx) {
+    if (!confirm('Delete this meeting?')) return;
+    var pid = AppState.currentProjectId;
+    Meetings[pid].splice(idx, 1);
+    updateProjectField(pid, 'meetings', Meetings[pid]).then(function() {
+        closeModal();
+        navigateTo('meetings');
+        showToast('Meeting deleted.', 'info');
+    });
 }
 
 function openAddMeetingModal() {
@@ -284,7 +377,9 @@ function handleAddMeeting() {
         type: type,
         status: status,
         attendees: [],
-        agenda: agenda
+        agenda: agenda,
+        minutes: '',
+        photos: []
     });
 
     var btn = document.querySelector('#modalFooter .btn-primary');
