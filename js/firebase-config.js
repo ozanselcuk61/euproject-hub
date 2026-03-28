@@ -4,6 +4,7 @@
 
 var auth;
 var db;
+var storage;
 
 function initFirebase() {
     var firebaseConfig = {
@@ -19,6 +20,7 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
     db = firebase.firestore();
+    storage = firebase.storage();
 
     auth.getRedirectResult().then(function(result) {
         if (result.user) {
@@ -196,64 +198,6 @@ function saveProject(projectData) {
     }
 }
 
-function loadUserProjects() {
-    var user = auth.currentUser;
-    if (!user) return Promise.resolve([]);
-
-    return db.collection('projects')
-        .where('ownerId', '==', user.uid)
-        .get()
-        .then(function(snapshot) {
-            // Clear existing data
-            Object.keys(Projects).forEach(function(k) { delete Projects[k]; });
-            Object.keys(Partners).forEach(function(k) { delete Partners[k]; });
-            Object.keys(WorkPackages).forEach(function(k) { delete WorkPackages[k]; });
-            Object.keys(Tasks).forEach(function(k) { delete Tasks[k]; });
-            Object.keys(Documents).forEach(function(k) { delete Documents[k]; });
-            Object.keys(Meetings).forEach(function(k) { delete Meetings[k]; });
-            Object.keys(Dissemination).forEach(function(k) { delete Dissemination[k]; });
-            Object.keys(ActivityStream).forEach(function(k) { delete ActivityStream[k]; });
-            Object.keys(BudgetTracking).forEach(function(k) { delete BudgetTracking[k]; });
-
-            snapshot.forEach(function(doc) {
-                var data = doc.data();
-                var id = doc.id;
-
-                Projects[id] = {
-                    id: id,
-                    firestoreId: id,
-                    name: data.name || '',
-                    programme: data.programme || '',
-                    projectNumber: data.projectNumber || '',
-                    startDate: data.startDate || '',
-                    endDate: data.endDate || '',
-                    duration: data.duration || 24,
-                    status: data.status || 'active',
-                    description: data.description || '',
-                    totalBudget: data.totalBudget || 0,
-                    coordinator: data.coordinator || '',
-                    coordinatorCountry: data.coordinatorCountry || '',
-                    lumpSum: data.lumpSum || { totalGrant: 0, wpAllocations: {} }
-                };
-
-                Partners[id] = data.partners || [];
-                WorkPackages[id] = data.workPackages || [];
-                Tasks[id] = data.tasks || [];
-                Documents[id] = data.documents || { folders: [] };
-                Meetings[id] = data.meetings || [];
-                Dissemination[id] = data.dissemination || { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] };
-                ActivityStream[id] = data.activityStream || [];
-                BudgetTracking[id] = data.budgetTracking || { wpStatus: [], partnerTransfers: [] };
-            });
-
-            return Object.keys(Projects);
-        })
-        .catch(function(error) {
-            console.error('Error loading projects:', error);
-            return [];
-        });
-}
-
 // Save a specific sub-data of a project
 function updateProjectField(projectId, fieldName, fieldValue) {
     if (!projectId) return Promise.resolve({ success: false, error: 'No project ID' });
@@ -266,6 +210,117 @@ function updateProjectField(projectId, fieldName, fieldValue) {
             console.error('Error updating field:', error);
             return { success: false, error: error.message };
         });
+}
+
+// ---- FILE UPLOAD (Firebase Storage) ----
+var MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function uploadFile(projectId, folderId, file) {
+    if (!auth.currentUser) return Promise.resolve({ success: false, error: 'Not authenticated' });
+    if (file.size > MAX_FILE_SIZE) return Promise.resolve({ success: false, error: 'File too large. Max 10MB.' });
+
+    var safeName = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    var path = 'projects/' + projectId + '/' + folderId + '/' + safeName;
+    var ref = storage.ref(path);
+
+    return ref.put(file).then(function(snapshot) {
+        return snapshot.ref.getDownloadURL();
+    }).then(function(url) {
+        return { success: true, url: url, path: path, name: file.name, size: formatFileSize(file.size) };
+    }).catch(function(error) {
+        return { success: false, error: error.message };
+    });
+}
+
+function deleteStorageFile(path) {
+    if (!path) return Promise.resolve();
+    return storage.ref(path).delete().catch(function() {});
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ---- PARTNER INVITATION ----
+function invitePartnerToProject(projectId, partnerEmail, partnerName, projectName) {
+    // Store invitation in Firestore
+    return db.collection('invitations').add({
+        projectId: projectId,
+        email: partnerEmail,
+        partnerName: partnerName,
+        projectName: projectName,
+        invitedBy: auth.currentUser.uid,
+        invitedByEmail: auth.currentUser.email,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function(docRef) {
+        return { success: true, id: docRef.id };
+    }).catch(function(error) {
+        return { success: false, error: error.message };
+    });
+}
+
+function loadUserProjects() {
+    var user = auth.currentUser;
+    if (!user) return Promise.resolve([]);
+
+    // Load owned projects + projects where user is invited member
+    var ownedQuery = db.collection('projects').where('ownerId', '==', user.uid).get();
+    var memberQuery = db.collection('projects').where('memberEmails', 'array-contains', user.email).get();
+
+    return Promise.all([ownedQuery, memberQuery]).then(function(results) {
+        // Clear existing data
+        Object.keys(Projects).forEach(function(k) { delete Projects[k]; });
+        Object.keys(Partners).forEach(function(k) { delete Partners[k]; });
+        Object.keys(WorkPackages).forEach(function(k) { delete WorkPackages[k]; });
+        Object.keys(Tasks).forEach(function(k) { delete Tasks[k]; });
+        Object.keys(Documents).forEach(function(k) { delete Documents[k]; });
+        Object.keys(Meetings).forEach(function(k) { delete Meetings[k]; });
+        Object.keys(Dissemination).forEach(function(k) { delete Dissemination[k]; });
+        Object.keys(ActivityStream).forEach(function(k) { delete ActivityStream[k]; });
+        Object.keys(BudgetTracking).forEach(function(k) { delete BudgetTracking[k]; });
+
+        var seen = {};
+        results.forEach(function(snapshot) {
+            snapshot.forEach(function(doc) {
+                if (seen[doc.id]) return;
+                seen[doc.id] = true;
+                var data = doc.data();
+                var id = doc.id;
+                var isOwner = data.ownerId === user.uid;
+
+                Projects[id] = {
+                    id: id, firestoreId: id,
+                    name: data.name || '', programme: data.programme || '',
+                    projectNumber: data.projectNumber || '',
+                    startDate: data.startDate || '', endDate: data.endDate || '',
+                    duration: data.duration || 24, status: data.status || 'active',
+                    description: data.description || '', totalBudget: data.totalBudget || 0,
+                    coordinator: data.coordinator || '', coordinatorCountry: data.coordinatorCountry || '',
+                    lumpSum: data.lumpSum || { totalGrant: 0, wpAllocations: {} },
+                    isOwner: isOwner,
+                    ownerId: data.ownerId,
+                    memberEmails: data.memberEmails || []
+                };
+
+                Partners[id] = data.partners || [];
+                WorkPackages[id] = data.workPackages || [];
+                Tasks[id] = data.tasks || [];
+                Documents[id] = data.documents || { folders: [] };
+                Meetings[id] = data.meetings || [];
+                Dissemination[id] = data.dissemination || { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] };
+                ActivityStream[id] = data.activityStream || [];
+                BudgetTracking[id] = data.budgetTracking || { wpStatus: [], partnerTransfers: [] };
+            });
+        });
+
+        return Object.keys(Projects);
+    }).catch(function(error) {
+        console.error('Error loading projects:', error);
+        return [];
+    });
 }
 
 // ---- AUTH STATE LISTENER ----
