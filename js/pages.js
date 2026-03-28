@@ -180,6 +180,9 @@ function renderDashboard(container) {
 // ---- MY PROJECTS ----
 function renderProjects(container) {
     var projectIds = Object.keys(Projects);
+    var activeProjects = projectIds.filter(function(id) { return Projects[id].status !== 'archived'; });
+    var archivedProjects = projectIds.filter(function(id) { return Projects[id].status === 'archived'; });
+
     container.innerHTML = '\
         <div class="page-header">\
             <h1>My Projects</h1>\
@@ -187,15 +190,28 @@ function renderProjects(container) {
                 <button class="btn btn-primary" onclick="openNewProjectModal()"><i class="fas fa-plus"></i> Create Project</button>\
             </div>\
         </div>\
-        <div class="tabs">\
-            <button class="tab-btn active">Current Projects (' + projectIds.length + ')</button>\
-            <button class="tab-btn">Archived (0)</button>\
+        <div class="tabs" id="projectTabs">\
+            <button class="tab-btn active" onclick="showProjectTab(\'active\',this)">Current Projects (' + activeProjects.length + ')</button>\
+            <button class="tab-btn" onclick="showProjectTab(\'archived\',this)">Archived (' + archivedProjects.length + ')</button>\
         </div>\
-        <div class="wp-grid" id="projectGrid"></div>';
+        <div class="wp-grid" id="projectGridActive"></div>\
+        <div class="wp-grid hidden" id="projectGridArchived"></div>';
 
-    var grid = document.getElementById('projectGrid');
+    renderProjectGrid('projectGridActive', activeProjects, false);
+    renderProjectGrid('projectGridArchived', archivedProjects, true);
+}
+
+function showProjectTab(tab, btn) {
+    document.querySelectorAll('#projectTabs .tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    document.getElementById('projectGridActive').className = 'wp-grid' + (tab === 'active' ? '' : ' hidden');
+    document.getElementById('projectGridArchived').className = 'wp-grid' + (tab === 'archived' ? '' : ' hidden');
+}
+
+function renderProjectGrid(containerId, projectIds, isArchived) {
+    var grid = document.getElementById(containerId);
     if (projectIds.length === 0) {
-        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:60px 20px;text-align:center"><i class="fas fa-folder-open" style="font-size:48px;color:var(--gray-300);margin-bottom:16px"></i><h3>No projects yet</h3><p style="color:var(--gray-500)">Create your first project to get started.</p></div>';
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:60px 20px;text-align:center"><i class="fas fa-folder-open" style="font-size:48px;color:var(--gray-300);margin-bottom:16px"></i><h3>' + (isArchived ? 'No archived projects' : 'No projects yet') + '</h3><p style="color:var(--gray-500)">' + (isArchived ? 'Archived projects will appear here.' : 'Create your first project to get started.') + '</p></div>';
         return;
     }
 
@@ -204,24 +220,82 @@ function renderProjects(container) {
         var wps = WorkPackages[id] || [];
         var ptnrs = Partners[id] || [];
         var prog = wps.length > 0 ? Math.round(wps.reduce(function(s, w) { return s + w.progress; }, 0) / wps.length) : 0;
-        return '<div class="wp-card" onclick="AppState.currentProjectId=\'' + id + '\';document.getElementById(\'projectSelector\').value=\'' + id + '\';updateSidebarBadges();navigateTo(\'overview\')">\
-            <div class="wp-card-header">\
+        var statusClass = p.status === 'archived' ? 'status-draft' : p.status === 'completed' ? 'status-completed' : 'status-active';
+        return '<div class="wp-card">\
+            <div class="wp-card-header" onclick="AppState.currentProjectId=\'' + id + '\';document.getElementById(\'projectSelector\').value=\'' + id + '\';updateSidebarBadges();navigateTo(\'overview\')" style="cursor:pointer">\
                 <span class="wp-number">' + (p.programme || 'EU Project') + '</span>\
-                <span class="status-badge status-active">' + (p.status || 'active') + '</span>\
+                <span class="status-badge ' + statusClass + '">' + (p.status || 'active') + '</span>\
             </div>\
-            <h3>' + p.name + '</h3>\
-            <p>' + (p.description || '').substring(0, 120) + (p.description && p.description.length > 120 ? '...' : '') + '</p>\
-            <div style="margin:12px 0">\
-                <div class="progress-label"><span>Progress</span><span>' + prog + '%</span></div>\
-                <div class="progress-bar"><div class="progress-fill" style="width:' + prog + '%"></div></div>\
+            <div onclick="AppState.currentProjectId=\'' + id + '\';document.getElementById(\'projectSelector\').value=\'' + id + '\';updateSidebarBadges();navigateTo(\'overview\')" style="cursor:pointer">\
+                <h3>' + p.name + '</h3>\
+                <p>' + (p.description || '').substring(0, 120) + (p.description && p.description.length > 120 ? '...' : '') + '</p>\
+                <div style="margin:12px 0">\
+                    <div class="progress-label"><span>Progress</span><span>' + prog + '%</span></div>\
+                    <div class="progress-bar"><div class="progress-fill" style="width:' + prog + '%"></div></div>\
+                </div>\
+                <div class="wp-meta">\
+                    <span><i class="fas fa-users"></i> ' + ptnrs.length + ' partners</span>\
+                    <span><i class="fas fa-euro-sign"></i> ' + formatCurrency(p.totalBudget) + '</span>\
+                    <span><i class="fas fa-clock"></i> ' + (p.duration || 0) + ' months</span>\
+                </div>\
             </div>\
-            <div class="wp-meta">\
-                <span><i class="fas fa-users"></i> ' + ptnrs.length + ' partners</span>\
-                <span><i class="fas fa-euro-sign"></i> ' + formatCurrency(p.totalBudget) + '</span>\
-                <span><i class="fas fa-clock"></i> ' + (p.duration || 0) + ' months</span>\
+            <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-200)">\
+                ' + (isArchived ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();restoreProject(\'' + id + '\')"><i class="fas fa-undo"></i> Restore</button>' : '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();archiveProject(\'' + id + '\')"><i class="fas fa-archive"></i> Archive</button>') + '\
+                <button class="btn btn-sm btn-danger" style="flex:1" onclick="event.stopPropagation();deleteProject(\'' + id + '\')"><i class="fas fa-trash"></i> Delete</button>\
             </div>\
         </div>';
     }).join('');
+}
+
+function archiveProject(projectId) {
+    if (!confirm('Archive this project? You can restore it later.')) return;
+    Projects[projectId].status = 'archived';
+    updateProjectField(projectId, 'status', 'archived').then(function() {
+        refreshProjectSelector();
+        updateSidebarBadges();
+        navigateTo('projects');
+        showToast('Project archived.', 'info');
+    });
+}
+
+function restoreProject(projectId) {
+    Projects[projectId].status = 'active';
+    updateProjectField(projectId, 'status', 'active').then(function() {
+        refreshProjectSelector();
+        updateSidebarBadges();
+        navigateTo('projects');
+        showToast('Project restored!', 'success');
+    });
+}
+
+function deleteProject(projectId) {
+    var p = Projects[projectId];
+    if (!confirm('Permanently delete "' + p.name + '"? This cannot be undone.')) return;
+    if (!confirm('Are you sure? All project data (partners, WPs, tasks, documents) will be lost.')) return;
+
+    db.collection('projects').doc(projectId).delete().then(function() {
+        delete Projects[projectId];
+        delete Partners[projectId];
+        delete WorkPackages[projectId];
+        delete Tasks[projectId];
+        delete Documents[projectId];
+        delete Meetings[projectId];
+        delete Dissemination[projectId];
+        delete ActivityStream[projectId];
+        delete BudgetTracking[projectId];
+
+        if (AppState.currentProjectId === projectId) {
+            var remaining = Object.keys(Projects);
+            AppState.currentProjectId = remaining.length > 0 ? remaining[0] : null;
+        }
+
+        refreshProjectSelector();
+        updateSidebarBadges();
+        navigateTo('projects');
+        showToast('Project deleted.', 'info');
+    }).catch(function(error) {
+        showToast('Error deleting project: ' + error.message, 'error');
+    });
 }
 
 function openNewProjectModal() {
