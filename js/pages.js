@@ -242,7 +242,7 @@ function renderProjectGrid(containerId, projectIds, isArchived) {
                 </div>\
             </div>\
             <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-200)">\
-                ' + (isArchived ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();restoreProject(\'' + id + '\')"><i class="fas fa-undo"></i> Restore</button>' : '') + '\
+                ' + (isArchived ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();restoreProject(\'' + id + '\')"><i class="fas fa-undo"></i> Restore</button>' : '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();archiveProject(\'' + id + '\')"><i class="fas fa-archive"></i> Archive</button>') + '\
                 <button class="btn btn-sm btn-danger" style="flex:1" onclick="event.stopPropagation();deleteProject(\'' + id + '\')"><i class="fas fa-trash"></i> Delete</button>\
             </div>\
         </div>';
