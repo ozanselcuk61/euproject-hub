@@ -4,7 +4,38 @@
 
 var appInitialized = false;
 
+// ---- Theme ----
+function initTheme() {
+    var saved = localStorage.getItem('euproject-theme');
+    if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+    updateThemeIcon();
+}
+
+function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme');
+    if (current === 'dark') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('euproject-theme', 'light');
+    } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('euproject-theme', 'dark');
+    }
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    var icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    initTheme();
     initFirebase();
     setupAuthListener();
 });
