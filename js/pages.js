@@ -221,6 +221,7 @@ function renderProjectGrid(containerId, projectIds, isArchived) {
         var ptnrs = Partners[id] || [];
         var prog = wps.length > 0 ? Math.round(wps.reduce(function(s, w) { return s + w.progress; }, 0) / wps.length) : 0;
         var statusClass = p.status === 'archived' ? 'status-draft' : p.status === 'completed' ? 'status-completed' : 'status-active';
+        var websiteHtml = p.website ? '<div style="margin-top:8px;font-size:12px"><a href="' + p.website + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--primary)"><i class="fas fa-globe"></i> ' + p.website.replace(/^https?:\/\//, '').replace(/\/$/, '') + '</a></div>' : '';
         return '<div class="wp-card">\
             <div class="wp-card-header" onclick="AppState.currentProjectId=\'' + id + '\';document.getElementById(\'projectSelector\').value=\'' + id + '\';updateSidebarBadges();navigateTo(\'overview\')" style="cursor:pointer">\
                 <span class="wp-number">' + (p.programme || 'EU Project') + '</span>\
@@ -229,6 +230,7 @@ function renderProjectGrid(containerId, projectIds, isArchived) {
             <div onclick="AppState.currentProjectId=\'' + id + '\';document.getElementById(\'projectSelector\').value=\'' + id + '\';updateSidebarBadges();navigateTo(\'overview\')" style="cursor:pointer">\
                 <h3>' + p.name + '</h3>\
                 <p>' + (p.description || '').substring(0, 120) + (p.description && p.description.length > 120 ? '...' : '') + '</p>\
+                ' + websiteHtml + '\
                 <div style="margin:12px 0">\
                     <div class="progress-label"><span>Progress</span><span>' + prog + '%</span></div>\
                     <div class="progress-bar"><div class="progress-fill" style="width:' + prog + '%"></div></div>\
@@ -240,7 +242,7 @@ function renderProjectGrid(containerId, projectIds, isArchived) {
                 </div>\
             </div>\
             <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-200)">\
-                ' + (isArchived ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();restoreProject(\'' + id + '\')"><i class="fas fa-undo"></i> Restore</button>' : '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();archiveProject(\'' + id + '\')"><i class="fas fa-archive"></i> Archive</button>') + '\
+                ' + (isArchived ? '<button class="btn btn-sm btn-secondary" style="flex:1" onclick="event.stopPropagation();restoreProject(\'' + id + '\')"><i class="fas fa-undo"></i> Restore</button>' : '') + '\
                 <button class="btn btn-sm btn-danger" style="flex:1" onclick="event.stopPropagation();deleteProject(\'' + id + '\')"><i class="fas fa-trash"></i> Delete</button>\
             </div>\
         </div>';
@@ -354,6 +356,10 @@ function openNewProjectModal() {
             <label class="form-label">Description</label>\
             <textarea class="form-textarea" rows="3" id="npDesc" placeholder="Brief project description..."></textarea>\
         </div>\
+        <div class="form-group">\
+            <label class="form-label">Project Website</label>\
+            <input type="url" class="form-input" id="npWebsite" placeholder="https://...">\
+        </div>\
     ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleCreateProject()"><i class="fas fa-check"></i> Create Project</button>', true);
 }
 
@@ -367,6 +373,7 @@ function handleCreateProject() {
     var coordinator = document.getElementById('npCoordinator').value.trim();
     var coordinatorCountry = document.getElementById('npCountry').value.trim();
     var description = document.getElementById('npDesc').value.trim();
+    var website = document.getElementById('npWebsite').value.trim();
 
     if (!name) { alert('Please enter a project name.'); return; }
 
@@ -389,6 +396,7 @@ function handleCreateProject() {
         totalBudget: totalBudget,
         coordinator: coordinator || (AppState.currentUser ? AppState.currentUser.organization || AppState.currentUser.name : ''),
         coordinatorCountry: coordinatorCountry,
+        website: website,
         lumpSum: { totalGrant: totalBudget, wpAllocations: {} },
         partners: [],
         workPackages: [],
@@ -422,6 +430,7 @@ function handleCreateProject() {
                 totalBudget: totalBudget,
                 coordinator: projectData.coordinator,
                 coordinatorCountry: coordinatorCountry,
+                website: website,
                 lumpSum: projectData.lumpSum
             };
             Partners[id] = [];
@@ -556,7 +565,7 @@ function openEditProjectModal() {
         return '<option' + (d === p.duration ? ' selected' : '') + '>' + d + '</option>';
     }).join('');
 
-    var statusOptions = ['active', 'completed', 'suspended'].map(function(s) {
+    var statusOptions = ['active', 'completed'].map(function(s) {
         return '<option value="' + s + '"' + (s === p.status ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
     }).join('');
 
@@ -613,6 +622,10 @@ function openEditProjectModal() {
             <label class="form-label">Description</label>\
             <textarea class="form-textarea" rows="3" id="epDesc">' + (p.description || '') + '</textarea>\
         </div>\
+        <div class="form-group">\
+            <label class="form-label">Project Website</label>\
+            <input type="url" class="form-input" id="epWebsite" value="' + (p.website || '').replace(/"/g, '&quot;') + '" placeholder="https://...">\
+        </div>\
     ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleEditProject()"><i class="fas fa-save"></i> Save Changes</button>', true);
 }
 
@@ -632,6 +645,10 @@ function handleEditProject() {
     var coordinator = document.getElementById('epCoordinator').value.trim();
     var coordinatorCountry = document.getElementById('epCountry').value.trim();
     var description = document.getElementById('epDesc').value.trim();
+    var website = document.getElementById('epWebsite').value.trim();
+
+    // Auto-archive if status changed to completed
+    if (status === 'completed') status = 'archived';
 
     if (!name) { alert('Project name is required.'); return; }
 
@@ -651,6 +668,7 @@ function handleEditProject() {
         coordinator: coordinator,
         coordinatorCountry: coordinatorCountry,
         description: description,
+        website: website,
         'lumpSum.totalGrant': totalBudget,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -669,13 +687,19 @@ function handleEditProject() {
             p.coordinator = coordinator;
             p.coordinatorCountry = coordinatorCountry;
             p.description = description;
+            p.website = website;
             p.lumpSum = p.lumpSum || {};
             p.lumpSum.totalGrant = totalBudget;
 
             refreshProjectSelector();
             closeModal();
-            navigateTo('overview');
-            showToast('Project updated!', 'success');
+            if (status === 'archived') {
+                navigateTo('projects');
+                showToast('Project marked as completed and archived.', 'success');
+            } else {
+                navigateTo('overview');
+                showToast('Project updated!', 'success');
+            }
         })
         .catch(function(error) {
             showToast('Error: ' + error.message, 'error');

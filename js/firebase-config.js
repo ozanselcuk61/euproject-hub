@@ -299,6 +299,7 @@ function loadUserProjects() {
                     duration: data.duration || 24, status: data.status || 'active',
                     description: data.description || '', totalBudget: data.totalBudget || 0,
                     coordinator: data.coordinator || '', coordinatorCountry: data.coordinatorCountry || '',
+                    website: data.website || '',
                     lumpSum: data.lumpSum || { totalGrant: 0, wpAllocations: {} },
                     isOwner: isOwner,
                     ownerId: data.ownerId,
