@@ -620,7 +620,8 @@ function handleEditTask(idx) {
 }
 
 // ---- DOCUMENTS ----
-var currentFolderId = null;
+// Navigation path: array of folder IDs representing current location
+var docNavPath = [];
 
 function getFileType(filename) {
     var ext = filename.split('.').pop().toLowerCase();
@@ -632,9 +633,29 @@ function getFileType(filename) {
     return 'other';
 }
 
-function renderDocuments(container) {
-    var docs = getCurrentDocuments();
+// Get folder by navigating the path
+function getFolderByPath(docs, path) {
+    var folders = docs.folders;
+    var folder = null;
+    for (var i = 0; i < path.length; i++) {
+        folder = folders.find(function(f) { return f.id === path[i]; });
+        if (!folder) return null;
+        folders = folder.subfolders || [];
+    }
+    return folder;
+}
 
+// Get the folders array at current navigation level
+function getFoldersAtPath(docs, path) {
+    if (path.length === 0) return docs.folders;
+    var parent = getFolderByPath(docs, path);
+    if (!parent) return [];
+    if (!parent.subfolders) parent.subfolders = [];
+    return parent.subfolders;
+}
+
+function renderDocuments(container) {
+    docNavPath = [];
     container.innerHTML = '\
         <div class="page-header">\
             <h1>Documents</h1>\
@@ -643,83 +664,116 @@ function renderDocuments(container) {
             </div>\
         </div>\
         <div style="margin-bottom:12px;padding:10px 14px;background:var(--gray-50);border-radius:var(--radius);font-size:12px;color:var(--gray-500)"><i class="fas fa-info-circle"></i> Max file size: 10 MB per file. Supported: PDF, Word, Excel, Images, ZIP</div>\
-        <div id="docBreadcrumb" style="margin-bottom:20px;font-size:14px">\
-            <a href="#" onclick="renderDocFolders();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>\
-        </div>\
+        <div id="docBreadcrumb" style="margin-bottom:20px;font-size:14px"></div>\
         <div id="docContent"></div>';
+    renderDocView();
+}
 
-    window.renderDocFolders = function() {
-        currentFolderId = null;
-        document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="renderDocFolders();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>';
-        var currentDocs = getCurrentDocuments();
-        var content = document.getElementById('docContent');
-        if (currentDocs.folders.length === 0) {
+function renderDocView() {
+    var pid = AppState.currentProjectId;
+    var docs = Documents[pid] || { folders: [] };
+    var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', xls: 'fa-file-excel', img: 'fa-file-image', generic: 'fa-file-archive', other: 'fa-file' };
+
+    // Build breadcrumb
+    var breadcrumb = '<a href="#" onclick="docNavPath=[];renderDocView();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>';
+    var pathSoFar = [];
+    for (var i = 0; i < docNavPath.length; i++) {
+        var pathFolder = getFolderByPath(docs, docNavPath.slice(0, i + 1));
+        if (!pathFolder) break;
+        pathSoFar.push(docNavPath[i]);
+        var pathCopy = JSON.stringify(pathSoFar);
+        if (i < docNavPath.length - 1) {
+            breadcrumb += ' <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <a href="#" onclick="docNavPath=' + pathCopy + ';renderDocView();return false">' + pathFolder.name + '</a>';
+        } else {
+            breadcrumb += ' <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <span style="font-weight:600">' + pathFolder.name + '</span>';
+        }
+    }
+    document.getElementById('docBreadcrumb').innerHTML = breadcrumb;
+
+    var content = document.getElementById('docContent');
+
+    if (docNavPath.length === 0) {
+        // Root level - show top-level folders only
+        var rootFolders = docs.folders || [];
+        if (rootFolders.length === 0) {
             content.innerHTML = '<div class="empty-state" style="padding:60px 20px;text-align:center"><i class="fas fa-folder-open" style="font-size:48px;color:var(--gray-300);margin-bottom:16px"></i><h3>No folders yet</h3><p style="color:var(--gray-500)">Create a folder to organize your project documents.</p></div>';
         } else {
-            content.innerHTML = '<div class="file-grid">' + currentDocs.folders.map(function(f) {
-                return '<div class="file-card" onclick="renderDocFiles(\'' + f.id + '\')"><div class="file-icon folder"><i class="fas fa-folder"></i></div><div class="file-name">' + f.name + '</div><div class="file-meta">' + f.files.length + ' files</div></div>';
+            content.innerHTML = '<div class="file-grid">' + rootFolders.map(function(f) {
+                var subCount = (f.subfolders || []).length;
+                var fileCount = (f.files || []).length;
+                var meta = [];
+                if (subCount > 0) meta.push(subCount + ' folder' + (subCount > 1 ? 's' : ''));
+                if (fileCount > 0) meta.push(fileCount + ' file' + (fileCount > 1 ? 's' : ''));
+                return '<div class="file-card" onclick="docNavPath=[\'' + f.id + '\'];renderDocView()"><div class="file-icon folder"><i class="fas fa-folder"></i></div><div class="file-name">' + f.name + '</div><div class="file-meta">' + (meta.join(', ') || 'Empty') + '</div></div>';
             }).join('') + '</div>';
         }
-    };
+    } else {
+        // Inside a folder - show subfolders + files + upload
+        var currentFolder = getFolderByPath(docs, docNavPath);
+        if (!currentFolder) { docNavPath = []; renderDocView(); return; }
+        var subfolders = currentFolder.subfolders || [];
+        var files = currentFolder.files || [];
 
-    window.renderDocFiles = function(folderId) {
-        currentFolderId = folderId;
-        var currentDocs = getCurrentDocuments();
-        var folder = currentDocs.folders.find(function(f) { return f.id === folderId; });
-        if (!folder) return;
-        var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', xls: 'fa-file-excel', img: 'fa-file-image', generic: 'fa-file-archive', other: 'fa-file' };
-        document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="renderDocFolders();return false"><i class="fas fa-home"></i> All Files</a> <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <span style="font-weight:600">' + folder.name + '</span>';
-        var content = document.getElementById('docContent');
+        var html = '<div style="margin-bottom:16px;display:flex;gap:8px">' +
+            '<button class="btn btn-secondary" onclick="openCreateFolderModal()"><i class="fas fa-folder-plus"></i> New Subfolder</button>' +
+            '<button class="btn btn-primary" onclick="triggerFileUpload()"><i class="fas fa-upload"></i> Upload File</button>' +
+            '<input type="file" id="fileUploadInput" style="display:none" multiple onchange="handleFileUpload(this.files)">' +
+            '</div>';
 
-        var uploadBtn = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="triggerFileUpload(\'' + folderId + '\')"><i class="fas fa-upload"></i> Upload File</button><input type="file" id="fileUploadInput" style="display:none" multiple onchange="handleFileUpload(\'' + folderId + '\',this.files)"></div>';
-
-        if (folder.files.length === 0) {
-            content.innerHTML = uploadBtn + '<div class="empty-state" style="padding:40px 20px;text-align:center;border:2px dashed var(--gray-200);border-radius:var(--radius)"><i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--gray-300);margin-bottom:12px"></i><p style="color:var(--gray-400)">This folder is empty. Upload files to get started.</p></div>';
+        if (subfolders.length === 0 && files.length === 0) {
+            html += '<div class="empty-state" style="padding:40px 20px;text-align:center;border:2px dashed var(--gray-200);border-radius:var(--radius)"><i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--gray-300);margin-bottom:12px"></i><p style="color:var(--gray-400)">This folder is empty. Add subfolders or upload files.</p></div>';
         } else {
-            content.innerHTML = uploadBtn + '<div class="file-grid">' + folder.files.map(function(f, fIdx) {
-                return '<div class="file-card" style="position:relative">' +
+            html += '<div class="file-grid">';
+            // Subfolders first
+            subfolders.forEach(function(sf) {
+                var sfSubCount = (sf.subfolders || []).length;
+                var sfFileCount = (sf.files || []).length;
+                var sfMeta = [];
+                if (sfSubCount > 0) sfMeta.push(sfSubCount + ' folder' + (sfSubCount > 1 ? 's' : ''));
+                if (sfFileCount > 0) sfMeta.push(sfFileCount + ' file' + (sfFileCount > 1 ? 's' : ''));
+                html += '<div class="file-card" onclick="docNavPath.push(\'' + sf.id + '\');renderDocView()"><div class="file-icon folder"><i class="fas fa-folder"></i></div><div class="file-name">' + sf.name + '</div><div class="file-meta">' + (sfMeta.join(', ') || 'Empty') + '</div></div>';
+            });
+            // Then files
+            files.forEach(function(f, fIdx) {
+                html += '<div class="file-card" style="position:relative">' +
                     (f.url ? '<a href="' + f.url + '" target="_blank" style="text-decoration:none;color:inherit">' : '') +
                     '<div class="file-icon ' + f.type + '"><i class="fas ' + (iconMap[f.type] || 'fa-file') + '"></i></div><div class="file-name">' + f.name + '</div><div class="file-meta">' + f.size + ' &middot; ' + f.uploaded + '</div><div style="font-size:10px;color:var(--gray-400);margin-top:2px">' + (f.by || '') + '</div>' +
                     (f.url ? '</a>' : '') +
-                    '<button class="btn btn-sm btn-ghost" style="position:absolute;top:4px;right:4px;color:var(--danger);padding:2px 6px" onclick="event.stopPropagation();deleteDocFile(\'' + folderId + '\',' + fIdx + ')" title="Delete"><i class="fas fa-trash"></i></button></div>';
-            }).join('') + '</div>';
+                    '<button class="btn btn-sm btn-ghost" style="position:absolute;top:4px;right:4px;color:var(--danger);padding:2px 6px" onclick="event.stopPropagation();deleteDocFile(' + fIdx + ')" title="Delete"><i class="fas fa-trash"></i></button></div>';
+            });
+            html += '</div>';
         }
-    };
-
-    renderDocFolders();
+        content.innerHTML = html;
+    }
 }
 
-function triggerFileUpload(folderId) {
+function triggerFileUpload() {
     document.getElementById('fileUploadInput').click();
 }
 
-function handleFileUpload(folderId, files) {
+function handleFileUpload(files) {
     if (!files || files.length === 0) return;
     var pid = AppState.currentProjectId;
-    var currentDocs = Documents[pid];
-    var folder = currentDocs.folders.find(function(f) { return f.id === folderId; });
+    var docs = Documents[pid];
+    var folder = getFolderByPath(docs, docNavPath);
     if (!folder) return;
+    if (!folder.files) folder.files = [];
 
     var uploadPromises = [];
+    var storageFolderId = docNavPath.join('_');
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         if (file.size > 10 * 1024 * 1024) {
             showToast(file.name + ' is too large (max 10MB).', 'error');
             continue;
         }
-
-        // Check for existing file with same name (version warning)
         var existingIdx = folder.files.findIndex(function(f) { return f.name === file.name; });
         if (existingIdx !== -1) {
             if (!confirm(file.name + ' already exists. Replace with new version?')) continue;
-            // Remove old file reference
-            if (folder.files[existingIdx].storagePath) {
-                deleteStorageFile(folder.files[existingIdx].storagePath);
-            }
+            if (folder.files[existingIdx].storagePath) deleteStorageFile(folder.files[existingIdx].storagePath);
             folder.files.splice(existingIdx, 1);
         }
-
-        uploadPromises.push(uploadFile(pid, folderId, file));
+        uploadPromises.push(uploadFile(pid, storageFolderId, file));
     }
 
     if (uploadPromises.length === 0) return;
@@ -731,46 +785,43 @@ function handleFileUpload(folderId, files) {
             if (result.success) {
                 folder.files.push({
                     id: 'f' + Date.now() + Math.random().toString(36).substr(2, 4),
-                    name: result.name,
-                    type: getFileType(result.name),
-                    size: result.size,
+                    name: result.name, type: getFileType(result.name), size: result.size,
                     uploaded: new Date().toISOString().split('T')[0],
                     by: AppState.currentUser ? AppState.currentUser.name : 'Unknown',
-                    url: result.url,
-                    storagePath: result.path
+                    url: result.url, storagePath: result.path
                 });
                 successCount++;
             } else {
                 showToast('Failed: ' + result.error, 'error');
             }
         });
-
         if (successCount > 0) {
-            updateProjectField(pid, 'documents', currentDocs).then(function() {
-                renderDocFiles(folderId);
+            updateProjectField(pid, 'documents', docs).then(function() {
+                renderDocView();
                 showToast(successCount + ' file(s) uploaded!', 'success');
             });
         }
     });
 }
 
-function deleteDocFile(folderId, fileIdx) {
+function deleteDocFile(fileIdx) {
     if (!confirm('Delete this file?')) return;
     var pid = AppState.currentProjectId;
-    var folder = Documents[pid].folders.find(function(f) { return f.id === folderId; });
+    var folder = getFolderByPath(Documents[pid], docNavPath);
     if (!folder) return;
     var file = folder.files[fileIdx];
     if (file && file.storagePath) deleteStorageFile(file.storagePath);
     folder.files.splice(fileIdx, 1);
     updateProjectField(pid, 'documents', Documents[pid]).then(function() {
-        renderDocFiles(folderId);
+        renderDocView();
         showToast('File deleted.', 'info');
     });
 }
 
 function openCreateFolderModal() {
     openModal('Create Folder', '\
-        <div class="form-group"><label class="form-label">Folder Name</label><input type="text" class="form-input" id="cfName" placeholder="New folder name"></div>\
+        <div class="form-group"><label class="form-label">Folder Name</label><input type="text" class="form-input" id="cfName" placeholder="e.g., WP1 or 1.1 Monitoring"></div>\
+        ' + (docNavPath.length > 0 ? '<p style="font-size:12px;color:var(--gray-500)"><i class="fas fa-info-circle"></i> This will be created as a subfolder inside the current folder.</p>' : '') + '\
     ', '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleCreateFolder()"><i class="fas fa-check"></i> Create</button>');
 }
 
@@ -782,7 +833,18 @@ function handleCreateFolder() {
     if (!Documents[pid]) Documents[pid] = { folders: [] };
 
     var folderId = name.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30) + '-' + Date.now().toString().slice(-4);
-    Documents[pid].folders.push({ id: folderId, name: name, type: 'folder', files: [] });
+    var newFolder = { id: folderId, name: name, type: 'folder', files: [], subfolders: [] };
+
+    if (docNavPath.length === 0) {
+        // Add to root
+        Documents[pid].folders.push(newFolder);
+    } else {
+        // Add as subfolder
+        var parentFolder = getFolderByPath(Documents[pid], docNavPath);
+        if (!parentFolder) { alert('Parent folder not found.'); return; }
+        if (!parentFolder.subfolders) parentFolder.subfolders = [];
+        parentFolder.subfolders.push(newFolder);
+    }
 
     var btn = document.querySelector('#modalFooter .btn-primary');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
@@ -790,10 +852,9 @@ function handleCreateFolder() {
     updateProjectField(pid, 'documents', Documents[pid]).then(function(result) {
         if (result.success) {
             closeModal();
-            navigateTo('documents');
+            renderDocView();
             showToast('Folder "' + name + '" created!', 'success');
         } else {
-            Documents[pid].folders.pop();
             showToast('Error creating folder.', 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Create'; }
         }
