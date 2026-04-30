@@ -205,8 +205,11 @@ function setupAuthListener() {
                     photoURL: user.photoURL || null
                 };
 
-                updateUserUI();
-                showApp();
+                // Load user's projects from Firestore
+                loadUserData().then(function() {
+                    updateUserUI();
+                    showApp();
+                });
             });
         } else {
             // User is signed out
