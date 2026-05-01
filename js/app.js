@@ -223,4 +223,5 @@ function navigateTo(page) {
     else content.innerHTML = '<div class="empty-state"><i class="fas fa-construction"></i><h3>Coming Soon</h3><p>This page is under development.</p></div>';
 
     document.getElementById('sidebar').classList.remove('open');
+    if (typeof updateSidebarBadges === 'function') updateSidebarBadges();
 }
