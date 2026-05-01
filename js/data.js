@@ -148,7 +148,7 @@ function updateProjectSelector() {
         selector.appendChild(opt);
         return;
     }
-    ids.forEach(function(id) {
+    ids.filter(function(id) { return Projects[id].status !== 'archived'; }).forEach(function(id) {
         var p = Projects[id];
         var opt = document.createElement('option');
         opt.value = id;
@@ -156,6 +156,16 @@ function updateProjectSelector() {
         if (id === AppState.currentProjectId) opt.selected = true;
         selector.appendChild(opt);
     });
+    updateSidebarBadges();
+}
+
+function updateSidebarBadges() {
+    var projectCount = Object.keys(Projects).filter(function(id) { return Projects[id].status !== 'archived'; }).length;
+    var taskCount = getCurrentTasks().filter(function(t) { return t.status !== 'completed'; }).length;
+    var bp = document.getElementById('badgeProjects');
+    var bt = document.getElementById('badgeTasks');
+    if (bp) bp.textContent = projectCount;
+    if (bt) bt.textContent = taskCount;
 }
 
 // ---- HELPER FUNCTIONS (used by page renderers) ----

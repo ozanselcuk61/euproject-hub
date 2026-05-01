@@ -125,10 +125,14 @@ function showApp() {
         setupSidebar();
         setupProjectSelector();
         setupModal();
+        initStripe();
         appInitialized = true;
     }
 
     updateUserUI();
+    handlePaymentSuccess();
+    checkTrialStatus();
+    checkPendingInvites();
 
     if (!window.location.hash.startsWith('#page-')) {
         window.location.hash = '#page-dashboard';

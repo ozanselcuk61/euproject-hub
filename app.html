@@ -13,6 +13,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <style>
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .auth-error { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
@@ -20,6 +21,13 @@
         .google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit; color: var(--gray-700); transition: var(--transition); }
         .google-btn:hover { background: var(--gray-50); border-color: var(--gray-400); }
         .google-btn img { width: 20px; height: 20px; }
+        .drop-zone { border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: var(--primary-50); }
+        .drop-zone i { font-size: 36px; color: var(--gray-400); margin-bottom: 12px; }
+        .drop-zone.dragover i { color: var(--primary); }
+        .upload-progress { margin-top: 12px; }
+        .file-item-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--gray-100); transition: background 0.15s; }
+        .file-item-row:hover { background: var(--gray-50); }
     </style>
 </head>
 <body>
@@ -111,7 +119,7 @@
                     </button>
                     <button class="sidebar-link" data-page="projects">
                         <i class="fas fa-project-diagram"></i> My Projects
-                        <span class="badge">2</span>
+                        <span class="badge" id="badgeProjects">0</span>
                     </button>
                 </div>
 
@@ -128,7 +136,7 @@
                     </button>
                     <button class="sidebar-link" data-page="tasks">
                         <i class="fas fa-tasks"></i> Tasks
-                        <span class="badge">5</span>
+                        <span class="badge" id="badgeTasks">0</span>
                     </button>
                     <button class="sidebar-link" data-page="documents">
                         <i class="fas fa-folder-open"></i> Documents
@@ -157,8 +165,7 @@
 
             <div class="sidebar-project-select">
                 <select class="project-selector" id="projectSelector">
-                    <option value="buildres">BuildRes (KA220)</option>
-                    <option value="yourein">You'ReIn (KA220)</option>
+                    <option value="">No projects yet</option>
                 </select>
             </div>
         </aside>
@@ -218,11 +225,14 @@
         </div>
     </div>
 
+    <script src="https://js.stripe.com/v3/"></script>
     <script src="js/data.js"></script>
+    <script src="js/stripe.js"></script>
     <script src="js/firebase-config.js"></script>
     <script src="js/pages.js"></script>
     <script src="js/pages2.js"></script>
     <script src="js/pages3.js"></script>
+    <script src="js/invite.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

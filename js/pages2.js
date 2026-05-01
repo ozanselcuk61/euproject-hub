@@ -11,6 +11,7 @@ function renderPartners(container) {
 
     container.innerHTML =
         '<div class="page-header"><h1>Partners</h1><div class="page-header-actions">' +
+        '<button class="btn btn-secondary" onclick="openInvitePartnerModal()"><i class="fas fa-paper-plane"></i> Invite</button>' +
         '<button class="btn btn-primary" onclick="openAddPartnerModal()"><i class="fas fa-user-plus"></i> Add Partner</button></div></div>' +
         '<div class="partner-grid">' +
         (partners.length > 0 ? partners.map(function(p) {
@@ -285,6 +286,8 @@ function deleteTask(docId) {
 }
 
 // ---- DOCUMENTS ----
+var currentFolderId = null;
+
 function renderDocuments(container) {
     var docs = getCurrentDocuments();
     var pid = AppState.currentProjectId;
@@ -293,35 +296,300 @@ function renderDocuments(container) {
     container.innerHTML =
         '<div class="page-header"><h1>Documents</h1><div class="page-header-actions">' +
         '<button class="btn btn-secondary" onclick="openCreateFolderModal()"><i class="fas fa-folder-plus"></i> New Folder</button>' +
-        '<button class="btn btn-primary"><i class="fas fa-upload"></i> Upload File</button></div></div>' +
-        '<div id="docBreadcrumb" style="margin-bottom:20px;font-size:14px"><a href="#" onclick="renderDocFolders();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a></div>' +
-        '<div id="docContent"><div class="file-grid">' +
-        (docs.folders.length > 0 ? docs.folders.map(function(f) {
-            return '<div class="file-card" onclick="renderDocFiles(\'' + (f._id || f.id || '') + '\')">' +
-            '<div class="file-icon folder"><i class="fas fa-folder"></i></div>' +
-            '<div class="file-name">' + f.name + '</div>' +
-            '<div class="file-meta">' + ((f.files || []).length) + ' files</div></div>';
-        }).join('') : '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-folder-open"></i><h3>No folders yet</h3><p>Create folders to organize your documents.</p></div>') +
-        '</div></div>';
+        '<button class="btn btn-primary" onclick="openUploadModal()"><i class="fas fa-upload"></i> Upload File</button></div></div>' +
+        '<div id="docBreadcrumb" style="margin-bottom:20px;font-size:14px"><a href="#" onclick="showDocRoot();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a></div>' +
+        '<div id="docContent"></div>';
 
-    window.renderDocFolders = function() { navigateTo('documents'); };
-    window.renderDocFiles = function(folderId) {
+    currentFolderId = null;
+    renderDocContent();
+}
+
+function renderDocContent() {
+    var docs = getCurrentDocuments();
+    var contentEl = document.getElementById('docContent');
+    if (!contentEl) return;
+
+    if (!currentFolderId) {
+        // Show folders
+        document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="showDocRoot();return false" style="font-weight:600"><i class="fas fa-home"></i> All Files</a>';
+        contentEl.innerHTML = '<div class="file-grid">' +
+            (docs.folders.length > 0 ? docs.folders.map(function(f) {
+                return '<div class="file-card" onclick="openFolder(\'' + (f._id || f.id || '') + '\')">' +
+                '<div class="file-icon folder"><i class="fas fa-folder"></i></div>' +
+                '<div class="file-name">' + f.name + '</div>' +
+                '<div class="file-meta">' + ((f.files || []).length) + ' files</div></div>';
+            }).join('') : '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-folder-open"></i><h3>No folders yet</h3><p>Create a folder to start organizing documents.</p></div>') +
+            '</div>';
+    } else {
+        // Show files in folder
+        var folder = docs.folders.find(function(f) { return (f._id || f.id) === currentFolderId; });
+        if (!folder) { currentFolderId = null; renderDocContent(); return; }
+        var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', docx: 'fa-file-word', xls: 'fa-file-excel', xlsx: 'fa-file-excel', img: 'fa-file-image', png: 'fa-file-image', jpg: 'fa-file-image', jpeg: 'fa-file-image', zip: 'fa-file-archive', generic: 'fa-file' };
+
+        document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="showDocRoot();return false"><i class="fas fa-home"></i> All Files</a>' +
+            ' <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <span style="font-weight:600">' + folder.name + '</span>';
+
+        var filesHtml = '<div class="card"><div class="card-header"><h2>' + folder.name + ' (' + (folder.files || []).length + ' files)</h2>' +
+            '<button class="btn btn-sm btn-primary" onclick="openUploadModal()"><i class="fas fa-upload"></i> Upload</button></div>';
+
+        if ((folder.files || []).length > 0) {
+            filesHtml += '<div class="card-body" style="padding:0">';
+            folder.files.forEach(function(f) {
+                var ext = (f.name || '').split('.').pop().toLowerCase();
+                var icon = iconMap[ext] || iconMap[f.type] || 'fa-file';
+                var typeClass = ['pdf'].indexOf(ext) >= 0 ? 'pdf' : ['doc','docx'].indexOf(ext) >= 0 ? 'doc' : ['xls','xlsx'].indexOf(ext) >= 0 ? 'xls' : ['png','jpg','jpeg','gif'].indexOf(ext) >= 0 ? 'img' : 'generic';
+                filesHtml += '<div class="file-item-row">' +
+                    '<div class="file-icon ' + typeClass + '" style="font-size:20px;width:36px;text-align:center"><i class="fas ' + icon + '"></i></div>' +
+                    '<div style="flex:1"><div style="font-size:14px;font-weight:600">' + f.name + '</div>' +
+                    '<div style="font-size:12px;color:var(--gray-400)">' + (f.size || '') + ' &middot; ' + (f.uploaded || '') + ' &middot; ' + (f.by || '') + '</div></div>' +
+                    (f.url ? '<a href="' + f.url + '" target="_blank" class="btn btn-sm btn-ghost"><i class="fas fa-download"></i></a>' : '') +
+                    '<button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteFile(\'' + currentFolderId + '\',\'' + (f.id || '') + '\')"><i class="fas fa-trash"></i></button></div>';
+            });
+            filesHtml += '</div>';
+        } else {
+            filesHtml += '<div class="card-body"><div class="drop-zone" id="dropZone">' +
+                '<i class="fas fa-cloud-upload-alt"></i><br>' +
+                '<strong>Drag & drop files here</strong><br>' +
+                '<span style="font-size:13px;color:var(--gray-400)">or click Upload button above</span></div></div>';
+        }
+        filesHtml += '</div>';
+        contentEl.innerHTML = filesHtml;
+
+        // Setup drag and drop
+        setupDropZone();
+    }
+}
+
+function showDocRoot() { currentFolderId = null; renderDocContent(); }
+function openFolder(folderId) { currentFolderId = folderId; renderDocContent(); }
+
+function setupDropZone() {
+    var zone = document.getElementById('dropZone');
+    if (!zone) return;
+    zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e) {
+        e.preventDefault(); zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
+    });
+    zone.addEventListener('click', function() {
+        var input = document.createElement('input'); input.type = 'file'; input.multiple = true;
+        input.onchange = function() { if (input.files.length > 0) uploadFiles(input.files); };
+        input.click();
+    });
+}
+
+function openUploadModal() {
+    var docs = getCurrentDocuments();
+    var folderOptions = docs.folders.map(function(f) {
+        return '<option value="' + (f._id || f.id) + '" ' + (currentFolderId === (f._id || f.id) ? 'selected' : '') + '>' + f.name + '</option>';
+    }).join('');
+
+    if (docs.folders.length === 0) {
+        showToast('Create a folder first', 'error');
+        openCreateFolderModal();
+        return;
+    }
+
+    openModal('Upload Files',
+        '<div class="form-group"><label class="form-label">Destination Folder</label>' +
+        '<select class="form-select" id="uploadFolder">' + folderOptions + '</select></div>' +
+        '<div class="drop-zone" id="modalDropZone" style="margin-bottom:16px">' +
+        '<i class="fas fa-cloud-upload-alt"></i><br><strong>Click here to select files</strong><br>' +
+        '<span style="font-size:13px;color:var(--gray-400)">PDF, DOCX, XLSX, images, ZIP — max 50MB each</span></div>' +
+        '<div id="uploadFileList"></div>' +
+        '<div id="uploadProgressArea"></div>' +
+        '<input type="file" id="fileInput" multiple style="display:none">',
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" id="uploadBtn" onclick="startUpload()" disabled><i class="fas fa-upload"></i> Upload</button>');
+
+    // Setup modal drop zone with retry
+    function setupModalDropZone() {
+        var mZone = document.getElementById('modalDropZone');
+        var fInput = document.getElementById('fileInput');
+        if (!mZone || !fInput) {
+            setTimeout(setupModalDropZone, 200);
+            return;
+        }
+
+        mZone.onclick = function(e) {
+            e.preventDefault();
+            fInput.value = '';
+            fInput.click();
+        };
+        mZone.ondragover = function(e) { e.preventDefault(); mZone.classList.add('dragover'); };
+        mZone.ondragleave = function() { mZone.classList.remove('dragover'); };
+        mZone.ondrop = function(e) {
+            e.preventDefault(); mZone.classList.remove('dragover');
+            handleFileSelection(e.dataTransfer.files);
+        };
+        fInput.onchange = function() {
+            if (fInput.files.length > 0) handleFileSelection(fInput.files);
+        };
+    }
+    setTimeout(setupModalDropZone, 50);
+}
+
+var selectedFiles = [];
+
+function handleFileSelection(files) {
+    selectedFiles = Array.from(files);
+    var listEl = document.getElementById('uploadFileList');
+    var btn = document.getElementById('uploadBtn');
+    if (!listEl) return;
+
+    listEl.innerHTML = selectedFiles.map(function(f, i) {
+        var sizeMB = (f.size / 1024 / 1024).toFixed(2);
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100)">' +
+            '<i class="fas fa-file" style="color:var(--gray-400)"></i>' +
+            '<span style="flex:1;font-size:13px">' + f.name + '</span>' +
+            '<span style="font-size:12px;color:var(--gray-400)">' + sizeMB + ' MB</span></div>';
+    }).join('');
+
+    if (btn) btn.disabled = selectedFiles.length === 0;
+}
+
+function startUpload() {
+    if (selectedFiles.length === 0) { showToast('No files selected', 'error'); return; }
+    var folderSelect = document.getElementById('uploadFolder');
+    var folderId = folderSelect ? folderSelect.value : currentFolderId;
+    if (!folderId) { showToast('Select a folder', 'error'); return; }
+    var pid = AppState.currentProjectId;
+    var uid = AppState.currentUser.id;
+    var progressArea = document.getElementById('uploadProgressArea');
+    var btn = document.getElementById('uploadBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...'; }
+
+    var uploads = selectedFiles.map(function(file, idx) {
+        var path = 'users/' + uid + '/projects/' + pid + '/' + folderId + '/' + Date.now() + '_' + file.name;
+        var ref = storage.ref(path);
+
+        return new Promise(function(resolve, reject) {
+            var uploadTask = ref.put(file);
+
+            uploadTask.on('state_changed',
+                function(snapshot) {
+                    var pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                    if (progressArea) {
+                        var pBar = document.getElementById('prog_' + idx);
+                        if (!pBar) {
+                            progressArea.innerHTML += '<div style="margin-top:8px"><div style="font-size:12px;margin-bottom:4px">' + file.name + '</div>' +
+                                '<div class="progress-bar"><div class="progress-fill" id="prog_' + idx + '" style="width:' + pct + '%"></div></div></div>';
+                        } else {
+                            pBar.style.width = pct + '%';
+                        }
+                    }
+                },
+                function(error) { reject(error); },
+                function() {
+                    uploadTask.snapshot.ref.getDownloadURL().then(function(url) {
+                        resolve({
+                            id: Date.now().toString(36) + idx,
+                            name: file.name,
+                            size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                            type: file.name.split('.').pop().toLowerCase(),
+                            url: url,
+                            path: path,
+                            uploaded: new Date().toISOString().split('T')[0],
+                            by: AppState.currentUser.name
+                        });
+                    });
+                }
+            );
+        });
+    });
+
+    Promise.all(uploads).then(function(fileRecords) {
+        // Update folder in Firestore
+        var docs = getCurrentDocuments();
         var folder = docs.folders.find(function(f) { return (f._id || f.id) === folderId; });
-        if (!folder) return;
-        var iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', xls: 'fa-file-excel', img: 'fa-file-image', generic: 'fa-file-archive' };
-        document.getElementById('docBreadcrumb').innerHTML = '<a href="#" onclick="renderDocFolders();return false"><i class="fas fa-home"></i> All Files</a> <i class="fas fa-chevron-right" style="font-size:10px;margin:0 8px;color:var(--gray-400)"></i> <span style="font-weight:600">' + folder.name + '</span>';
-        document.getElementById('docContent').innerHTML = '<div class="file-grid">' +
-        ((folder.files || []).length > 0 ? folder.files.map(function(f) {
-            return '<div class="file-card"><div class="file-icon ' + (f.type || 'generic') + '"><i class="fas ' + (iconMap[f.type] || 'fa-file') + '"></i></div>' +
-            '<div class="file-name">' + f.name + '</div><div class="file-meta">' + (f.size || '') + ' &middot; ' + (f.uploaded || '') + '</div></div>';
-        }).join('') : '<div class="empty-state" style="grid-column:1/-1"><p>No files in this folder yet.</p></div>') + '</div>';
-    };
+        if (folder) {
+            if (!folder.files) folder.files = [];
+            fileRecords.forEach(function(fr) { folder.files.push(fr); });
+
+            // Save to Firestore
+            updateInSubCollection(pid, 'documents', folder._id, { files: folder.files });
+        }
+
+        addActivity(pid, 'uploaded ' + fileRecords.length + ' file(s) to', folder ? folder.name : 'documents');
+        showToast(fileRecords.length + ' file(s) uploaded!', 'success');
+        selectedFiles = [];
+        closeModal();
+        currentFolderId = folderId;
+        navigateTo('documents');
+    }).catch(function(err) {
+        console.error('Upload error:', err);
+        showToast('Upload failed: ' + err.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload"></i> Upload'; }
+    });
+}
+
+function uploadFiles(files) {
+    if (!currentFolderId) {
+        showToast('Open a folder first', 'error');
+        return;
+    }
+    selectedFiles = Array.from(files);
+    var folderId = currentFolderId;
+    document.getElementById('docContent').innerHTML += '<div id="quickUploadProgress" style="margin-top:16px"></div>';
+
+    // Reuse startUpload logic inline
+    var pid = AppState.currentProjectId;
+    var uid = AppState.currentUser.id;
+
+    var uploads = selectedFiles.map(function(file) {
+        var path = 'users/' + uid + '/projects/' + pid + '/' + folderId + '/' + Date.now() + '_' + file.name;
+        var ref = storage.ref(path);
+        return ref.put(file).then(function(snapshot) {
+            return snapshot.ref.getDownloadURL().then(function(url) {
+                return { id: Date.now().toString(36), name: file.name, size: (file.size / 1024 / 1024).toFixed(2) + ' MB', type: file.name.split('.').pop().toLowerCase(), url: url, path: path, uploaded: new Date().toISOString().split('T')[0], by: AppState.currentUser.name };
+            });
+        });
+    });
+
+    Promise.all(uploads).then(function(fileRecords) {
+        var docs = getCurrentDocuments();
+        var folder = docs.folders.find(function(f) { return (f._id || f.id) === folderId; });
+        if (folder) {
+            if (!folder.files) folder.files = [];
+            fileRecords.forEach(function(fr) { folder.files.push(fr); });
+            updateInSubCollection(pid, 'documents', folder._id, { files: folder.files });
+        }
+        addActivity(pid, 'uploaded ' + fileRecords.length + ' file(s) to', folder ? folder.name : 'documents');
+        showToast(fileRecords.length + ' file(s) uploaded!', 'success');
+        selectedFiles = [];
+        renderDocContent();
+    }).catch(function(err) {
+        showToast('Upload failed: ' + err.message, 'error');
+    });
+}
+
+function deleteFile(folderId, fileId) {
+    if (!confirm('Delete this file?')) return;
+    var pid = AppState.currentProjectId;
+    var docs = getCurrentDocuments();
+    var folder = docs.folders.find(function(f) { return (f._id || f.id) === folderId; });
+    if (!folder) return;
+
+    var file = (folder.files || []).find(function(f) { return f.id === fileId; });
+
+    // Delete from Storage
+    if (file && file.path) {
+        storage.ref(file.path).delete().catch(function(e) { console.error('Storage delete error:', e); });
+    }
+
+    // Remove from folder
+    folder.files = (folder.files || []).filter(function(f) { return f.id !== fileId; });
+    updateInSubCollection(pid, 'documents', folder._id, { files: folder.files }).then(function() {
+        showToast('File deleted', 'info');
+        renderDocContent();
+    });
 }
 
 function openCreateFolderModal() {
     openModal('Create Folder',
-        '<div class="form-group"><label class="form-label">Folder Name *</label><input type="text" class="form-input" id="cfName" placeholder="New folder name"></div>',
-        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleCreateFolder()">Create</button>');
+        '<div class="form-group"><label class="form-label">Folder Name *</label><input type="text" class="form-input" id="cfName" placeholder="e.g., WP1 - Research"></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleCreateFolder()"><i class="fas fa-check"></i> Create</button>');
 }
 
 function handleCreateFolder() {
@@ -333,6 +601,7 @@ function handleCreateFolder() {
     addToSubCollection(pid, 'documents', data).then(function(result) {
         data._id = result.id;
         Documents[pid].folders.push(data);
+        addActivity(pid, 'created folder', name);
         showToast('Folder "' + name + '" created!', 'success');
         closeModal();
         navigateTo('documents');

@@ -4,6 +4,7 @@
 
 let auth;
 let db;
+let storage;
 
 // Initialize Firebase
 function initFirebase() {
@@ -20,6 +21,7 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
     db = firebase.firestore();
+    storage = firebase.storage();
 
     // Handle redirect result (for Google sign-in)
     auth.getRedirectResult().then(function(result) {
