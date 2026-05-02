@@ -249,156 +249,154 @@ function deleteWP(docId) {
     });
 }
 
-// ---- TASKS ----
+// ---- TASKS (Redesigned) ----
+var taskView = 'board';
+var taskFilter = { wp: '', assignee: '', priority: '' };
+
 function renderTasks(container) {
     var tasks = getCurrentTasks();
     var pid = AppState.currentProjectId;
     if (!pid) { container.innerHTML = '<div class="empty-state"><p>Select a project first.</p></div>'; return; }
-    var pending = tasks.filter(function(t) { return t.status === 'pending'; });
-    var inProgress = tasks.filter(function(t) { return t.status === 'in_progress'; });
-    var completed = tasks.filter(function(t) { return t.status === 'completed'; });
+
+    var total = tasks.length;
+    var completedCount = tasks.filter(function(t) { return t.status === 'completed'; }).length;
+    var inProgressCount = tasks.filter(function(t) { return t.status === 'in_progress'; }).length;
+    var pendingCount = tasks.filter(function(t) { return t.status === 'pending'; }).length;
+    var overdueCount = tasks.filter(function(t) { return t.status !== 'completed' && t.due && new Date(t.due) < new Date(); }).length;
+    var completionPct = total > 0 ? Math.round(completedCount / total * 100) : 0;
+
+    var filtered = tasks.filter(function(t) {
+        if (taskFilter.wp && t.wp !== taskFilter.wp) return false;
+        if (taskFilter.assignee && t.assignee !== taskFilter.assignee) return false;
+        if (taskFilter.priority && t.priority !== taskFilter.priority) return false;
+        return true;
+    });
+
+    var wps = getCurrentWPs();
+    var assignees = [];
+    tasks.forEach(function(t) { if (t.assignee && assignees.indexOf(t.assignee) === -1) assignees.push(t.assignee); });
 
     container.innerHTML =
         '<div class="page-header"><h1>Tasks</h1><div class="page-header-actions">' +
         '<button class="btn btn-primary" onclick="openAddTaskModal()"><i class="fas fa-plus"></i> Add Task</button></div></div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">' +
-        renderTaskColumn('Pending', pending, 'var(--warning-light)') +
-        renderTaskColumn('In Progress', inProgress, 'var(--primary-100)') +
-        renderTaskColumn('Completed', completed, 'var(--success-light)') +
-        '</div>';
+        '<div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px">' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--primary)">' + total + '</div><div style="font-size:11px;color:var(--gray-500)">Total</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--warning)">' + pendingCount + '</div><div style="font-size:11px;color:var(--gray-500)">Pending</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--accent)">' + inProgressCount + '</div><div style="font-size:11px;color:var(--gray-500)">In Progress</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--success)">' + completedCount + '</div><div style="font-size:11px;color:var(--gray-500)">Completed</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--danger)">' + overdueCount + '</div><div style="font-size:11px;color:var(--gray-500)">Overdue</div></div></div>' +
+        '<div style="margin-bottom:20px"><div class="progress-label"><span>Completion</span><span>' + completionPct + '%</span></div>' +
+        '<div class="progress-bar" style="height:10px"><div class="progress-fill success" style="width:' + completionPct + '%"></div></div></div>' +
+        '<div class="card mb-6"><div class="card-body" style="padding:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">' +
+        '<span style="font-size:13px;font-weight:600;color:var(--gray-500)"><i class="fas fa-filter"></i> Filter:</span>' +
+        '<select class="form-select" style="width:auto;padding:6px 10px;font-size:12px" onchange="taskFilter.wp=this.value;renderTasks(document.getElementById(\'pageContent\'))">' +
+        '<option value="">All WPs</option>' + wps.map(function(w) { return '<option value="' + (w.number||'') + '"' + (taskFilter.wp===w.number?' selected':'') + '>' + (w.number||'') + '</option>'; }).join('') + '</select>' +
+        '<select class="form-select" style="width:auto;padding:6px 10px;font-size:12px" onchange="taskFilter.assignee=this.value;renderTasks(document.getElementById(\'pageContent\'))">' +
+        '<option value="">All Assignees</option>' + assignees.map(function(a) { return '<option' + (taskFilter.assignee===a?' selected':'') + '>' + a + '</option>'; }).join('') + '</select>' +
+        '<select class="form-select" style="width:auto;padding:6px 10px;font-size:12px" onchange="taskFilter.priority=this.value;renderTasks(document.getElementById(\'pageContent\'))">' +
+        '<option value="">All Priorities</option><option value="high"' + (taskFilter.priority==='high'?' selected':'') + '>High</option><option value="medium"' + (taskFilter.priority==='medium'?' selected':'') + '>Medium</option><option value="low"' + (taskFilter.priority==='low'?' selected':'') + '>Low</option></select>' +
+        (taskFilter.wp||taskFilter.assignee||taskFilter.priority ? '<button class="btn btn-sm btn-ghost" onclick="taskFilter={wp:\'\',assignee:\'\',priority:\'\'};renderTasks(document.getElementById(\'pageContent\'))"><i class="fas fa-times"></i> Clear</button>' : '') +
+        '<div style="margin-left:auto;display:flex;gap:4px">' +
+        '<button class="btn btn-sm ' + (taskView==='board'?'btn-primary':'btn-secondary') + '" onclick="taskView=\'board\';renderTasks(document.getElementById(\'pageContent\'))"><i class="fas fa-columns"></i></button>' +
+        '<button class="btn btn-sm ' + (taskView==='list'?'btn-primary':'btn-secondary') + '" onclick="taskView=\'list\';renderTasks(document.getElementById(\'pageContent\'))"><i class="fas fa-list"></i></button>' +
+        '<button class="btn btn-sm ' + (taskView==='calendar'?'btn-primary':'btn-secondary') + '" onclick="taskView=\'calendar\';renderTasks(document.getElementById(\'pageContent\'))"><i class="fas fa-calendar"></i></button></div></div></div>' +
+        '<div id="taskViewContainer"></div>';
+    var vc = document.getElementById('taskViewContainer');
+    if (taskView==='board') renderTaskBoard(vc, filtered);
+    else if (taskView==='list') renderTaskList(vc, filtered);
+    else renderTaskCalendar(vc, filtered);
 }
 
-function renderTaskColumn(title, tasks, color) {
-    return '<div class="card"><div class="card-header" style="background:' + color + '"><h2 style="font-size:14px">' + title + ' (' + tasks.length + ')</h2></div>' +
-    '<div class="card-body" style="padding:12px">' +
+function renderTaskBoard(container, tasks) {
+    var p = tasks.filter(function(t){return t.status==='pending';});
+    var ip = tasks.filter(function(t){return t.status==='in_progress';});
+    var c = tasks.filter(function(t){return t.status==='completed';});
+    container.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">' +
+        renderTaskColumn('Pending',p,'#f59e0b','fa-clock') +
+        renderTaskColumn('In Progress',ip,'#3b82f6','fa-spinner') +
+        renderTaskColumn('Completed',c,'#10b981','fa-check-circle') + '</div>';
+}
+
+function renderTaskColumn(title, tasks, color, icon) {
+    var priorityColors = {high:'#ef4444',medium:'#f59e0b',low:'#10b981'};
+    return '<div style="background:var(--gray-50);border-radius:var(--radius-lg);overflow:hidden">' +
+    '<div style="background:' + color + ';padding:12px 16px;display:flex;align-items:center;justify-content:space-between">' +
+    '<div style="display:flex;align-items:center;gap:8px;color:#fff;font-weight:700;font-size:14px"><i class="fas ' + icon + '"></i> ' + title + '</div>' +
+    '<span style="background:rgba(255,255,255,0.3);color:#fff;padding:2px 10px;border-radius:50px;font-size:12px;font-weight:700">' + tasks.length + '</span></div>' +
+    '<div style="padding:12px;min-height:100px">' +
     (tasks.length > 0 ? tasks.map(function(t) {
-        return '<div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;margin-bottom:10px;' + (t.priority === 'high' ? 'border-left:3px solid var(--danger)' : '') + '">' +
-        '<div style="font-size:13px;font-weight:600;color:var(--gray-800);margin-bottom:6px">' + t.title + '</div>' +
+        var isOverdue = t.due && new Date(t.due) < new Date() && t.status !== 'completed';
+        return '<div style="background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;border-left:4px solid ' + (priorityColors[t.priority]||'#9ca3af') + ';box-shadow:var(--shadow-sm);cursor:pointer;transition:all 0.15s" ' +
+        'onmouseover="this.style.boxShadow=\'var(--shadow-md)\';this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.boxShadow=\'var(--shadow-sm)\';this.style.transform=\'none\'" ' +
+        'onclick="openEditTaskModal(\'' + (t._id||'') + '\')">' +
+        '<div style="font-size:14px;font-weight:600;color:var(--gray-800);margin-bottom:8px;' + (t.status==='completed'?'text-decoration:line-through;opacity:0.6':'') + '">' + t.title + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">' +
+        (t.wp ? '<span style="background:var(--primary-50);color:var(--primary);padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600">' + t.wp + '</span>' : '') +
+        '<span style="background:' + (priorityColors[t.priority]||'#eee') + '20;color:' + (priorityColors[t.priority]||'#666') + ';padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600">' + (t.priority||'medium') + '</span>' +
+        (isOverdue ? '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600"><i class="fas fa-exclamation-triangle"></i> Overdue</span>' : '') + '</div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span class="wp-number" style="font-size:10px">' + (t.wp || '') + '</span>' +
-        '<span style="font-size:11px;color:var(--gray-400)">' + formatDate(t.due) + '</span></div>' +
-        '<div style="margin-top:8px;display:flex;gap:4px;justify-content:space-between">' +
-        '<div style="display:flex;gap:2px">' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'pending\')" title="Pending">P</button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'in_progress\')" title="In Progress">IP</button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'completed\')" title="Done">D</button></div>' +
-        '<div style="display:flex;gap:2px">' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="openEditTaskModal(\'' + (t._id || '') + '\')" title="Edit"><i class="fas fa-edit"></i></button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px;color:var(--danger)" onclick="deleteTask(\'' + (t._id || '') + '\')" title="Delete"><i class="fas fa-trash"></i></button></div></div></div>';
-    }).join('') : '<p class="text-sm text-muted" style="text-align:center;padding:20px">No tasks</p>') +
+        (t.assignee ? '<div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">' + (t.assigneeInitials||'?') + '</div><span style="font-size:11px;color:var(--gray-500)">' + t.assignee.split(' ')[0] + '</span></div>' : '<span style="font-size:11px;color:var(--gray-400);font-style:italic">Unassigned</span>') +
+        (t.due ? '<span style="font-size:11px;color:' + (isOverdue?'var(--danger)':'var(--gray-400)') + '"><i class="fas fa-calendar-day"></i> ' + formatDate(t.due) + '</span>' : '') + '</div>' +
+        '<div style="display:flex;gap:4px;margin-top:10px;border-top:1px solid var(--gray-100);padding-top:8px">' +
+        '<button class="btn btn-sm btn-ghost" style="flex:1;padding:4px;font-size:10px;' + (t.status==='pending'?'background:var(--warning-light)':'') + '" onclick="event.stopPropagation();changeTaskStatus(\'' + (t._id||'') + '\',\'pending\')"><i class="fas fa-clock"></i> Todo</button>' +
+        '<button class="btn btn-sm btn-ghost" style="flex:1;padding:4px;font-size:10px;' + (t.status==='in_progress'?'background:var(--primary-100)':'') + '" onclick="event.stopPropagation();changeTaskStatus(\'' + (t._id||'') + '\',\'in_progress\')"><i class="fas fa-play"></i> Doing</button>' +
+        '<button class="btn btn-sm btn-ghost" style="flex:1;padding:4px;font-size:10px;' + (t.status==='completed'?'background:var(--success-light)':'') + '" onclick="event.stopPropagation();changeTaskStatus(\'' + (t._id||'') + '\',\'completed\')"><i class="fas fa-check"></i> Done</button></div></div>';
+    }).join('') : '<div style="text-align:center;padding:30px;color:var(--gray-400)"><i class="fas fa-inbox" style="font-size:24px;margin-bottom:8px;display:block"></i><span style="font-size:13px">No tasks</span></div>') +
     '</div></div>';
 }
 
-function openAddTaskModal() {
-    var wps = getCurrentWPs();
-    var partners = getCurrentPartners();
-    openModal('Add New Task',
-        '<div class="form-group"><label class="form-label">Task Title *</label><input type="text" class="form-input" id="atTitle" placeholder="What needs to be done?"></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="atWP"><option value="">None</option>' +
-        wps.map(function(w) { return '<option value="' + (w.number || '') + '">' + (w.number || '') + ' - ' + w.title + '</option>'; }).join('') + '</select></div>' +
-        '<div class="form-group"><label class="form-label">Assignee</label><select class="form-select" id="atAssignee"><option value="">Unassigned</option>' +
-        partners.map(function(p) { return '<option>' + (p.contact || p.name) + '</option>'; }).join('') + '</select></div></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-input" id="atDue"></div>' +
-        '<div class="form-group"><label class="form-label">Priority</label><select class="form-select" id="atPriority"><option>low</option><option selected>medium</option><option>high</option></select></div></div>',
-        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddTask()"><i class="fas fa-check"></i> Create Task</button>');
+function renderTaskList(container, tasks) {
+    var priorityColors = {high:'#ef4444',medium:'#f59e0b',low:'#10b981'};
+    container.innerHTML = '<div class="card"><div class="card-body" style="padding:0"><table class="data-table"><thead><tr><th style="width:30px"></th><th>Task</th><th>WP</th><th>Assignee</th><th>Due</th><th>Priority</th><th>Status</th><th style="width:70px"></th></tr></thead><tbody>' +
+    (tasks.length > 0 ? tasks.map(function(t) {
+        var isOverdue = t.due && new Date(t.due) < new Date() && t.status !== 'completed';
+        return '<tr style="cursor:pointer" onclick="openEditTaskModal(\'' + (t._id||'') + '\')">' +
+        '<td><div style="width:12px;height:12px;border-radius:50%;background:' + (priorityColors[t.priority]||'#ccc') + '"></div></td>' +
+        '<td style="font-weight:600;' + (t.status==='completed'?'text-decoration:line-through;opacity:0.5':'') + '">' + t.title + '</td>' +
+        '<td>' + (t.wp?'<span class="wp-number">'+t.wp+'</span>':'-') + '</td>' +
+        '<td>' + (t.assignee?t.assignee.split(' ')[0]:'<span style="color:var(--gray-400)">-</span>') + '</td>' +
+        '<td style="' + (isOverdue?'color:var(--danger);font-weight:600':'') + '">' + (t.due?formatDate(t.due):'-') + '</td>' +
+        '<td><span style="background:' + (priorityColors[t.priority]||'#eee') + '20;color:' + (priorityColors[t.priority]||'#666') + ';padding:3px 10px;border-radius:50px;font-size:11px;font-weight:600">' + (t.priority||'-') + '</span></td>' +
+        '<td><span class="status-badge status-' + (t.status==='in_progress'?'active':t.status==='completed'?'completed':'pending') + '">' + (t.status||'').replace('_',' ') + '</span></td>' +
+        '<td onclick="event.stopPropagation()"><button class="btn btn-sm btn-ghost" onclick="openEditTaskModal(\'' + (t._id||'') + '\')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteTask(\'' + (t._id||'') + '\')"><i class="fas fa-trash"></i></button></td></tr>';
+    }).join('') : '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400)">No tasks</td></tr>') +
+    '</tbody></table></div></div>';
 }
 
-function handleAddTask() {
-    var title = document.getElementById('atTitle').value.trim();
-    if (!title) { alert('Please enter task title.'); return; }
-    var pid = AppState.currentProjectId;
-    var assignee = document.getElementById('atAssignee').value;
-    var data = {
-        title: title,
-        wp: document.getElementById('atWP').value,
-        assignee: assignee,
-        assigneeInitials: assignee ? assignee.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase() : '',
-        due: document.getElementById('atDue').value,
-        priority: document.getElementById('atPriority').value,
-        status: 'pending'
-    };
-    if (!Tasks[pid]) Tasks[pid] = [];
-    addToSubCollection(pid, 'tasks', data).then(function(result) {
-        data._id = result.id;
-        Tasks[pid].push(data);
-        addActivity(pid, 'created task', title);
-        // Send email notification to assignee
-        if (typeof notifyTaskAssigned === 'function' && data.assignee) {
-            var partner = getCurrentPartners().find(function(p) { return p.contact === data.assignee || p.name === data.assignee; });
-            if (partner && partner.email) notifyTaskAssigned(data, partner.email, getCurrentProject());
+function renderTaskCalendar(container, tasks) {
+    var now = new Date();
+    var year = now.getFullYear(), month = now.getMonth();
+    var firstDay = new Date(year,month,1).getDay();
+    var daysInMonth = new Date(year,month+1,0).getDate();
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var tasksByDate = {};
+    tasks.forEach(function(t) {
+        if (!t.due) return;
+        var d = new Date(t.due);
+        if (d.getMonth()===month && d.getFullYear()===year) {
+            var day = d.getDate();
+            if (!tasksByDate[day]) tasksByDate[day] = [];
+            tasksByDate[day].push(t);
         }
-        showToast('Task created!', 'success');
-        closeModal();
-        navigateTo('tasks');
     });
-}
-
-function changeTaskStatus(docId, newStatus) {
-    var pid = AppState.currentProjectId;
-    var task = getCurrentTasks().find(function(t) { return t._id === docId; });
-    if (task) {
-        task.status = newStatus;
-        updateInSubCollection(pid, 'tasks', docId, { status: newStatus });
-        navigateTo('tasks');
+    var priorityColors = {high:'#ef4444',medium:'#f59e0b',low:'#10b981'};
+    var html = '<div class="card"><div class="card-header"><h2>' + monthNames[month] + ' ' + year + '</h2></div>' +
+    '<div class="card-body" style="padding:8px"><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center">' +
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(d){return '<div style="padding:8px;font-size:11px;font-weight:700;color:var(--gray-400)">'+d+'</div>';}).join('');
+    for (var i=0;i<firstDay;i++) html += '<div></div>';
+    for (var d=1;d<=daysInMonth;d++) {
+        var isToday = d===now.getDate()&&month===now.getMonth();
+        var dayTasks = tasksByDate[d]||[];
+        html += '<div style="padding:4px;min-height:60px;border:1px solid var(--gray-100);border-radius:var(--radius-sm);' + (isToday?'background:var(--primary-50);border-color:var(--primary)':'') + '">' +
+        '<div style="font-size:12px;font-weight:' + (isToday?'800;color:var(--primary)':'500;color:var(--gray-600)') + ';margin-bottom:2px">' + d + '</div>';
+        dayTasks.forEach(function(t) {
+            html += '<div style="font-size:9px;padding:2px 4px;margin-bottom:1px;border-radius:3px;background:' + (priorityColors[t.priority]||'#eee') + '20;color:' + (priorityColors[t.priority]||'#666') + ';cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="openEditTaskModal(\'' + (t._id||'') + '\')" title="' + t.title + '">' + t.title + '</div>';
+        });
+        html += '</div>';
     }
+    html += '</div></div></div>';
+    container.innerHTML = html;
 }
-
-function deleteTask(docId) {
-    if (!confirm('Delete this task?')) return;
-    var pid = AppState.currentProjectId;
-    deleteFromSubCollection(pid, 'tasks', docId).then(function() {
-        Tasks[pid] = Tasks[pid].filter(function(t) { return t._id !== docId; });
-        navigateTo('tasks');
-    });
-}
-
-function openEditTaskModal(docId) {
-    var pid = AppState.currentProjectId;
-    var t = getCurrentTasks().find(function(task) { return task._id === docId; });
-    if (!t) return;
-    var wps = getCurrentWPs();
-    var partners = getCurrentPartners();
-    openModal('Edit Task',
-        '<div class="form-group"><label class="form-label">Task Title</label><input type="text" class="form-input" id="etTitle" value="' + (t.title || '') + '"></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="etWP"><option value="">None</option>' +
-        wps.map(function(w) { return '<option value="' + (w.number || '') + '"' + (t.wp === (w.number || '') ? ' selected' : '') + '>' + (w.number || '') + ' - ' + w.title + '</option>'; }).join('') + '</select></div>' +
-        '<div class="form-group"><label class="form-label">Assignee</label><select class="form-select" id="etAssignee"><option value="">Unassigned</option>' +
-        partners.map(function(p) { return '<option' + (t.assignee === (p.contact || p.name) ? ' selected' : '') + '>' + (p.contact || p.name) + '</option>'; }).join('') + '</select></div></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-input" id="etDue" value="' + (t.due || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">Priority</label><select class="form-select" id="etPriority">' +
-        '<option' + (t.priority === 'low' ? ' selected' : '') + '>low</option>' +
-        '<option' + (t.priority === 'medium' ? ' selected' : '') + '>medium</option>' +
-        '<option' + (t.priority === 'high' ? ' selected' : '') + '>high</option></select></div></div>' +
-        '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="etStatus">' +
-        '<option value="pending"' + (t.status === 'pending' ? ' selected' : '') + '>Pending</option>' +
-        '<option value="in_progress"' + (t.status === 'in_progress' ? ' selected' : '') + '>In Progress</option>' +
-        '<option value="completed"' + (t.status === 'completed' ? ' selected' : '') + '>Completed</option></select></div>',
-        '<button class="btn btn-danger" onclick="deleteTask(\'' + docId + '\');closeModal()"><i class="fas fa-trash"></i> Delete</button>' +
-        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
-        '<button class="btn btn-primary" onclick="saveEditTask(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>');
-}
-
-function saveEditTask(docId) {
-    var pid = AppState.currentProjectId;
-    var assignee = document.getElementById('etAssignee').value;
-    var updates = {
-        title: document.getElementById('etTitle').value.trim(),
-        wp: document.getElementById('etWP').value,
-        assignee: assignee,
-        assigneeInitials: assignee ? assignee.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase() : '',
-        due: document.getElementById('etDue').value,
-        priority: document.getElementById('etPriority').value,
-        status: document.getElementById('etStatus').value
-    };
-    var task = getCurrentTasks().find(function(t) { return t._id === docId; });
-    if (task) Object.assign(task, updates);
-    updateInSubCollection(pid, 'tasks', docId, updates).then(function() {
-        showToast('Task updated', 'success');
-        closeModal();
-        navigateTo('tasks');
-    });
-}
-
 // ---- DOCUMENTS ----
 var currentFolderId = null;
 
