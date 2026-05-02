@@ -35,8 +35,12 @@ function sendPartnerInvite() {
         createdAt: new Date().toISOString()
     };
 
-    // Save invite to Firestore
+    // Save invite to Firestore and add member to project
     db.collection('invites').add(invite).then(function(ref) {
+        // Pre-add email to project members array so they can access when they sign up
+        db.collection('projects').doc(pid).update({
+            members: firebase.firestore.FieldValue.arrayUnion(email)
+        }).catch(function(e) { console.error('Add member error:', e); });
         addActivity(pid, 'invited', email + ' as ' + role);
         if (typeof notifyPartnerInvited === 'function') notifyPartnerInvited(email, AppState.currentUser.name, project.name, role);
         showToast('Invitation sent to ' + email, 'success');

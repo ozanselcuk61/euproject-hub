@@ -312,7 +312,10 @@ function handleCreateProject() {
         description: description || 'New EU project.', totalBudget: totalBudget,
         coordinator: AppState.currentUser.organization || AppState.currentUser.name,
         coordinatorCountry: '', lumpSum: { totalGrant: totalBudget, wpAllocations: {} },
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        ownerId: AppState.currentUser.id,
+        ownerEmail: AppState.currentUser.email,
+        members: [AppState.currentUser.email]
     };
 
     Projects[id] = projectData;
