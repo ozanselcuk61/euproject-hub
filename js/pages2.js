@@ -3,39 +3,87 @@
    Partners, Work Packages, Tasks, Documents
    ==================================== */
 
-// ---- PARTNERS ----
+// ---- PARTNERS (Redesigned) ----
 function renderPartners(container) {
     var partners = getCurrentPartners();
     var pid = AppState.currentProjectId;
     if (!pid) { container.innerHTML = '<div class="empty-state"><p>Select a project first.</p></div>'; return; }
 
+    // Sort: coordinator first, then by name
+    var sorted = partners.slice().sort(function(a, b) {
+        if (a.role === 'coordinator' && b.role !== 'coordinator') return -1;
+        if (b.role === 'coordinator' && a.role !== 'coordinator') return 1;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+
+    var totalBudget = partners.reduce(function(s, p) { return s + (p.budget || 0); }, 0);
+    var countries = [];
+    partners.forEach(function(p) { if (p.country && countries.indexOf(p.country) === -1) countries.push(p.country); });
+
     container.innerHTML =
-        '<div class="page-header"><h1>Partners</h1><div class="page-header-actions">' +
+        '<div class="page-header"><h1>Partners (' + partners.length + ')</h1><div class="page-header-actions">' +
         '<button class="btn btn-secondary" onclick="openInvitePartnerModal()"><i class="fas fa-paper-plane"></i> Invite</button>' +
         '<button class="btn btn-primary" onclick="openAddPartnerModal()"><i class="fas fa-user-plus"></i> Add Partner</button></div></div>' +
-        '<div class="partner-grid">' +
-        (partners.length > 0 ? partners.map(function(p) {
-            return '<div class="partner-card">' +
-            '<div class="partner-avatar">' + (p.initials || 'P') + '</div>' +
-            '<h3>' + p.name + '</h3>' +
-            '<div class="partner-country"><i class="fas fa-map-marker-alt"></i> ' + (p.country || 'N/A') + '</div>' +
-            '<span class="partner-role ' + (p.role === 'coordinator' ? 'role-coordinator' : 'role-partner') + '">' + (p.role || 'partner') + '</span>' +
-            '<div style="margin-top:16px;text-align:left;padding:12px;background:var(--gray-50);border-radius:var(--radius)">' +
-            '<div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Contact Person</div>' +
-            '<div style="font-size:14px;font-weight:600">' + (p.contact || 'N/A') + '</div>' +
-            '<div style="font-size:12px;color:var(--primary)">' + (p.email || '') + '</div></div>' +
-            '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">' +
-            '<div style="padding:8px;background:var(--primary-50);border-radius:var(--radius)">' +
-            '<div style="font-size:16px;font-weight:800;color:var(--primary)">' + formatCurrency(p.budget) + '</div>' +
-            '<div style="font-size:10px;color:var(--gray-500)">Budget</div></div>' +
-            '<div style="padding:8px;background:var(--success-light);border-radius:var(--radius)">' +
-            '<div style="font-size:16px;font-weight:800;color:var(--success)">' + (p.budget ? Math.round((p.spent || 0) / p.budget * 100) : 0) + '%</div>' +
-            '<div style="font-size:10px;color:var(--gray-500)">Utilized</div></div></div>' +
-            '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center">' +
-            '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openEditPartnerModal(\'' + (p._id || '') + '\')"><i class="fas fa-edit"></i> Edit</button>' +
-            '<button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="event.stopPropagation();deletePartner(\'' + (p._id || '') + '\')"><i class="fas fa-trash"></i> Delete</button></div></div>';
-        }).join('') : '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-users"></i><h3>No partners yet</h3><p>Add partner organizations to your project.</p></div>') +
-        '</div>';
+
+        // Summary
+        (partners.length > 0 ? '<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--primary)">' + partners.length + '</div><div style="font-size:11px;color:var(--gray-500)">Organizations</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--accent)">' + countries.length + '</div><div style="font-size:11px;color:var(--gray-500)">Countries</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--success)">' + formatCurrency(totalBudget) + '</div><div style="font-size:11px;color:var(--gray-500)">Total Partner Budget</div></div></div>' : '') +
+
+        // Partner list
+        '<div class="card"><div class="card-body" style="padding:0">' +
+        (sorted.length > 0 ? sorted.map(function(p) {
+            var isCoord = p.role === 'coordinator';
+            var flag = typeof getCountryFlag === 'function' ? getCountryFlag(p.country) : '';
+            var pct = (p.budget || 0) > 0 ? Math.round((p.spent || 0) / p.budget * 100) : 0;
+
+            return '<div style="display:flex;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--gray-100);' +
+            (isCoord ? 'background:linear-gradient(90deg,var(--primary-50),transparent);border-left:4px solid var(--primary)' : '') +
+            '" onmouseover="this.style.background=\'' + (isCoord ? 'var(--primary-50)' : 'var(--gray-50)') + '\'" onmouseout="this.style.background=\'' + (isCoord ? 'linear-gradient(90deg,var(--primary-50),transparent)' : '') + '\'">' +
+
+            // Avatar
+            '<div style="width:44px;height:44px;border-radius:12px;background:' + (isCoord ? 'linear-gradient(135deg,var(--primary),var(--primary-dark))' : 'linear-gradient(135deg,var(--gray-300),var(--gray-400))') +
+            ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0">' + (p.initials || 'P') + '</div>' +
+
+            // Info
+            '<div style="flex:1;min-width:0">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">' +
+            '<span style="font-size:15px;font-weight:700;color:var(--gray-900)">' + p.name + '</span>' +
+            (isCoord ? '<span style="background:var(--primary);color:#fff;padding:2px 8px;border-radius:50px;font-size:10px;font-weight:700">COORDINATOR</span>' :
+            '<span style="background:var(--gray-100);color:var(--gray-600);padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600">' + (p.role || 'partner').toUpperCase() + '</span>') +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--gray-500)">' +
+            '<span>' + flag + ' ' + (p.country || 'N/A') + '</span>' +
+            (p.contact ? '<span><i class="fas fa-user" style="margin-right:3px"></i>' + p.contact + '</span>' : '') +
+            (p.email ? '<span><i class="fas fa-envelope" style="margin-right:3px"></i>' + p.email + '</span>' : '') +
+            '</div></div>' +
+
+            // Budget
+            '<div style="text-align:right;flex-shrink:0;min-width:100px">' +
+            '<div style="font-size:16px;font-weight:800;color:' + (isCoord ? 'var(--primary)' : 'var(--gray-800)') + '">' + formatCurrency(p.budget) + '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:4px">' +
+            '<div class="progress-bar" style="width:60px;height:4px"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+            '<span style="font-size:10px;color:var(--gray-400)">' + pct + '%</span></div></div>' +
+
+            // Actions
+            '<div style="display:flex;gap:4px;flex-shrink:0">' +
+            '<button class="btn btn-sm btn-ghost" style="padding:6px" onclick="openEditPartnerModal(\'' + (p._id || '') + '\')" title="Edit"><i class="fas fa-edit"></i></button>' +
+            '<button class="btn btn-sm btn-ghost" style="padding:6px;color:var(--danger)" onclick="deletePartner(\'' + (p._id || '') + '\')" title="Delete"><i class="fas fa-trash"></i></button>' +
+            '</div></div>';
+        }).join('') : '<div class="empty-state" style="padding:40px"><i class="fas fa-users"></i><h3>No partners yet</h3><p>Add partner organizations to your project.</p></div>') +
+        '</div></div>' +
+
+        // Partner map
+        (partners.length > 0 ? '<div class="card mt-6"><div class="card-header"><h2><i class="fas fa-map-marked-alt"></i> Partner Countries</h2></div><div class="card-body" id="partnerListMap"></div></div>' : '');
+
+    // Render map
+    if (partners.length > 0) {
+        setTimeout(function() {
+            var mapEl = document.getElementById('partnerListMap');
+            if (mapEl && typeof renderPartnerMap === 'function') renderPartnerMap(mapEl);
+        }, 50);
+    }
 }
 
 function openAddPartnerModal() {
