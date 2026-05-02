@@ -151,10 +151,18 @@ function setupSidebar() {
     });
     document.getElementById('sidebarToggle').addEventListener('click', function() {
         document.getElementById('sidebar').classList.toggle('open');
+        var overlay = document.getElementById('sidebarOverlay');
+        if (overlay) overlay.classList.toggle('active');
     });
-    document.getElementById('sidebarClose').addEventListener('click', function() {
-        document.getElementById('sidebar').classList.remove('open');
-    });
+    document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
+    var overlay = document.getElementById('sidebarOverlay');
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+}
+
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    var overlay = document.getElementById('sidebarOverlay');
+    if (overlay) overlay.classList.remove('active');
 }
 
 function setupProjectSelector() {
@@ -222,6 +230,6 @@ function navigateTo(page) {
     if (renderer) renderer(content);
     else content.innerHTML = '<div class="empty-state"><i class="fas fa-construction"></i><h3>Coming Soon</h3><p>This page is under development.</p></div>';
 
-    document.getElementById('sidebar').classList.remove('open');
+    closeSidebar();
     if (typeof updateSidebarBadges === 'function') updateSidebarBadges();
 }

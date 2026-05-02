@@ -1322,23 +1322,107 @@
     .content-grid-equal { grid-template-columns: 1fr; }
     .budget-summary { grid-template-columns: 1fr; }
     .dissemination-stats { grid-template-columns: repeat(2, 1fr); }
+    .wp-grid { grid-template-columns: 1fr; }
+    .partner-grid { grid-template-columns: repeat(2, 1fr); }
+    .file-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);
+        width: 280px;
+        z-index: 200;
     }
     .sidebar.open {
         transform: translateX(0);
+        box-shadow: 0 0 40px rgba(0,0,0,0.3);
     }
     .sidebar-close { display: block; }
     .main-content { margin-left: 0; }
     .topbar-toggle { display: block; }
-    .topbar { padding: 12px 16px; }
-    .page-content { padding: 20px 16px; }
+    .topbar { padding: 10px 16px; }
+    .topbar-search { display: none; }
+    .topbar-breadcrumb { font-size: 12px; }
+    .topbar-user .user-name { display: none; }
+    .topbar-user .user-role { display: none; }
+    .page-content { padding: 16px 12px; }
     .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-    .stats-grid { grid-template-columns: 1fr; }
+    .page-header h1 { font-size: 22px; }
+    .page-header-actions { width: 100%; display: flex; gap: 8px; }
+    .page-header-actions .btn { flex: 1; justify-content: center; font-size: 12px; padding: 8px 12px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-card { padding: 16px; }
+    .stat-card-value { font-size: 22px; }
     .form-row { grid-template-columns: 1fr; }
+    .partner-grid { grid-template-columns: 1fr; }
+    .wp-grid { grid-template-columns: 1fr; }
+    .file-grid { grid-template-columns: 1fr 1fr; }
+    .card-header { padding: 14px 16px; flex-wrap: wrap; gap: 8px; }
+    .card-body { padding: 16px; }
+    .data-table { font-size: 12px; }
+    .data-table th, .data-table td { padding: 10px 8px; }
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-btn { padding: 10px 14px; font-size: 13px; white-space: nowrap; }
+    .modal { width: 95%; max-height: 85vh; margin: 20px auto; }
+    .modal-lg { max-width: 95%; }
+    .modal-header h2 { font-size: 16px; }
+    .modal-body { padding: 16px; }
+    .modal-footer { padding: 12px 16px; flex-wrap: wrap; }
+    .modal-footer .btn { flex: 1; min-width: 100px; justify-content: center; }
+    .budget-summary { grid-template-columns: 1fr; }
+    .budget-amount { font-size: 24px; }
+    .dissemination-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .meeting-card { padding: 16px; }
+    .meeting-attendees { flex-wrap: wrap; }
+    .ai-report-container { max-width: 100%; }
+    .ai-report-output { padding: 16px; }
+    .ai-report-output h3 { font-size: 16px; }
+    .drop-zone { padding: 24px 16px; }
+    .file-item-row { padding: 8px 10px; flex-wrap: wrap; }
+    .auth-card { padding: 24px 20px; margin: 10px; }
+    .auth-header h1 { font-size: 20px; }
+}
+
+@media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .file-grid { grid-template-columns: 1fr; }
+    .dissemination-stats { grid-template-columns: 1fr; }
+    .page-header h1 { font-size: 20px; }
+    .hero h1 { font-size: 28px; }
+    .hero-subtitle { font-size: 15px; }
+    .hero-cta { flex-direction: column; }
+    .hero-stats { flex-direction: column; gap: 12px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .steps-grid { grid-template-columns: 1fr; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .testimonials-grid { grid-template-columns: 1fr; }
+    .lumpsum-grid { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: 1fr; }
+    .ai-content { grid-template-columns: 1fr; }
+}
+
+/* Mobile sidebar overlay */
+@media (max-width: 768px) {
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 150;
+    }
+    .sidebar-overlay.active {
+        display: block;
+    }
+}
+
+/* Touch-friendly targets */
+@media (pointer: coarse) {
+    .btn { min-height: 44px; }
+    .btn-sm { min-height: 36px; }
+    .sidebar-link { padding: 12px; min-height: 44px; }
+    .task-checkbox { width: 24px; height: 24px; }
+    .tab-btn { padding: 12px 16px; }
+    .form-input, .form-select, .form-textarea { padding: 12px 14px; font-size: 16px; }
 }
 
 /* Utility */
