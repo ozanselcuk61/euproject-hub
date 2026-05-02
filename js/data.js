@@ -183,7 +183,12 @@ function getCurrentPartners() {
 }
 
 function getCurrentWPs() {
-    return WorkPackages[AppState.currentProjectId] || [];
+    var wps = WorkPackages[AppState.currentProjectId] || [];
+    return wps.slice().sort(function(a, b) {
+        var numA = parseInt((a.number || '').replace(/[^0-9]/g, '')) || 0;
+        var numB = parseInt((b.number || '').replace(/[^0-9]/g, '')) || 0;
+        return numA - numB;
+    });
 }
 
 function getCurrentTasks() {
