@@ -216,6 +216,7 @@ function unarchiveProject(pid) {
 
 // ---- CREATE PROJECT ----
 function openNewProjectModal() {
+    if (!requirePremium("create a new project")) return;
     openModal('Create New Project',
         '<div class="form-group"><label class="form-label">Project Name *</label>' +
         '<input type="text" class="form-input" id="npName" placeholder="e.g., DigiSkills4EU"></div>' +
@@ -436,6 +437,7 @@ function renderOverview(container) {
 }
 
 function openEditProjectModal() {
+    if (!requirePremium("edit project details")) return;
     var p = getCurrentProject();
     var programmeGroups = [
         { label: 'KA220 — Cooperation Partnerships', items: ['Erasmus+ KA220-HED','Erasmus+ KA220-VET','Erasmus+ KA220-SCH','Erasmus+ KA220-ADU','Erasmus+ KA220-YOU'] },

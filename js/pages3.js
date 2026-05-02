@@ -126,6 +126,7 @@ function renderBudget(container) {
 }
 
 function openTransferModal() {
+    if (!requirePremium("record transfers")) return;
     var partners = getCurrentPartners();
     if (partners.length === 0) { showToast('Add partners first', 'error'); return; }
     openModal('Record Partner Transfer',
@@ -260,6 +261,7 @@ function getDissFormHTML(a) {
 }
 
 function openAddDisseminationModal() {
+    if (!requirePremium("log dissemination")) return;
     openModal('Log Dissemination Activity',
         getDissFormHTML() + '</div>' +
         '<div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" id="dissLink" placeholder="https://..."></div>',
@@ -488,6 +490,7 @@ function renderAIReport(container) {
 }
 
 function generateAIReport() {
+    if (!requirePremium("generate AI reports")) return;
     var output = document.getElementById('aiReportOutput');
     var project = getCurrentProject();
     var partners = getCurrentPartners();

@@ -39,6 +39,7 @@ function renderPartners(container) {
 }
 
 function openAddPartnerModal() {
+    if (!requirePremium("add a partner")) return;
     var countries = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Iceland','Ireland','Italy','Latvia','Liechtenstein','Lithuania','Luxembourg','Malta','Netherlands','North Macedonia','Norway','Poland','Portugal','Romania','Serbia','Slovakia','Slovenia','Spain','Sweden','Turkey'];
     openModal('Add Partner Organization',
         '<div class="form-group"><label class="form-label">Organization Name *</label><input type="text" class="form-input" id="apName" placeholder="e.g., University of Helsinki"></div>' +
@@ -79,6 +80,7 @@ function handleAddPartner() {
 }
 
 function deletePartner(docId) {
+    if (!requirePremium("delete a partner")) return;
     if (!docId || !confirm('Remove this partner?')) return;
     var pid = AppState.currentProjectId;
     deleteFromSubCollection(pid, 'partners', docId).then(function() {
@@ -89,6 +91,7 @@ function deletePartner(docId) {
 }
 
 function openEditPartnerModal(docId) {
+    if (!requirePremium("edit partner details")) return;
     var pid = AppState.currentProjectId;
     var p = getCurrentPartners().find(function(pr) { return pr._id === docId; });
     if (!p) return;
@@ -247,6 +250,7 @@ function toggleWPExpand(wpId) {
 
 // ---- WP CRUD ----
 function openAddWPModal() {
+    if (!requirePremium("add a work package")) return;
     var partners = getCurrentPartners();
     var wps = getCurrentWPs();
     var nextNum = 'WP' + (wps.length + 1);
@@ -289,6 +293,7 @@ function handleAddWP() {
 }
 
 function openEditWPModal(docId) {
+    if (!requirePremium("edit work packages")) return;
     var wp = getCurrentWPs().find(function(w) { return w._id === docId; });
     if (!wp) return;
     var partners = getCurrentPartners();
@@ -333,6 +338,7 @@ function saveWPUpdate(docId) {
 }
 
 function deleteWP(docId) {
+    if (!requirePremium("delete a work package")) return;
     if (!confirm('Delete this work package and all its activities?')) return;
     var pid = AppState.currentProjectId;
     deleteFromSubCollection(pid, 'workpackages', docId).then(function() {
@@ -345,6 +351,7 @@ function deleteWP(docId) {
 
 // ---- ACTIVITIES within WP ----
 function openAddActivityModal(wpId) {
+    if (!requirePremium("add activities")) return;
     var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
     if (!wp) return;
     var activities = wp.activities || [];
@@ -694,6 +701,7 @@ function setupDropZone() {
 }
 
 function openUploadModal() {
+    if (!requirePremium("upload files")) return;
     var docs = getCurrentDocuments();
     var folderOptions = docs.folders.map(function(f) {
         return '<option value="' + (f._id || f.id) + '" ' + (currentFolderId === (f._id || f.id) ? 'selected' : '') + '>' + f.name + '</option>';
@@ -907,6 +915,7 @@ function openCreateFolderModal() {
 }
 
 function handleCreateFolder() {
+    if (!requirePremium("create folders")) return;
     var name = document.getElementById('cfName').value.trim();
     if (!name) { alert('Please enter folder name.'); return; }
     var pid = AppState.currentProjectId;

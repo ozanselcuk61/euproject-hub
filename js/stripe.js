@@ -12,6 +12,40 @@ function initStripe() {
     }
 }
 
+// Check if user can perform premium actions
+function canUsePremiumFeature() {
+    var user = AppState.currentUser;
+    if (!user) return false;
+    if (user.plan === 'premium') return true;
+    if (!user.trialEnd) return true; // no trial end set, allow
+    return new Date() <= new Date(user.trialEnd);
+}
+
+// Guard function - call before any add/edit/delete action
+function requirePremium(actionName) {
+    if (canUsePremiumFeature()) return true;
+    showUpgradeModal(actionName);
+    return false;
+}
+
+function showUpgradeModal(actionName) {
+    openModal('Upgrade to Premium',
+        '<div style="text-align:center;padding:20px 0">' +
+        '<div style="width:64px;height:64px;border-radius:50%;background:var(--warning-light);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><i class="fas fa-crown" style="font-size:28px;color:var(--warning)"></i></div>' +
+        '<h3 style="font-size:20px;margin-bottom:8px">Your Free Trial Has Expired</h3>' +
+        '<p style="color:var(--gray-500);margin-bottom:24px">To ' + (actionName || 'use this feature') + ', upgrade to Premium for just <strong>€15/month</strong>.</p>' +
+        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;text-align:left;margin-bottom:20px">' +
+        '<div style="font-size:13px;color:var(--gray-600);line-height:2">' +
+        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Unlimited projects & partners</div>' +
+        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Full edit/delete capabilities</div>' +
+        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> AI report generation</div>' +
+        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> File uploads & document management</div>' +
+        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> PDF & CSV export</div>' +
+        '</div></div></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Maybe Later</button>' +
+        '<button class="btn btn-primary btn-lg" onclick="closeModal();startCheckout()"><i class="fas fa-credit-card"></i> Upgrade Now — €15/mo</button>');
+}
+
 // Check if user's trial has expired
 function isTrialExpired() {
     var user = AppState.currentUser;
