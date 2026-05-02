@@ -127,6 +127,7 @@ function showApp() {
         setupModal();
         initStripe();
         initEmailJS();
+        initDarkMode();
         appInitialized = true;
     }
 
@@ -134,6 +135,7 @@ function showApp() {
     handlePaymentSuccess();
     checkTrialStatus();
     checkPendingInvites();
+    setTimeout(function() { if (typeof checkDeadlineReminders === 'function') checkDeadlineReminders(); }, 2000);
 
     if (!window.location.hash.startsWith('#page-')) {
         window.location.hash = '#page-dashboard';

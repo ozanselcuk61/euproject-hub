@@ -1438,3 +1438,56 @@
 .gap-3 { gap: 12px; }
 .gap-4 { gap: 16px; }
 .hidden { display: none !important; }
+
+/* Dark Mode */
+body.dark-mode {
+    --gray-50: #1a1a2e;
+    --gray-100: #1f2937;
+    --gray-200: #374151;
+    --gray-300: #4b5563;
+    --gray-400: #9ca3af;
+    --gray-500: #d1d5db;
+    --gray-600: #e5e7eb;
+    --gray-700: #f3f4f6;
+    --gray-800: #f9fafb;
+    --gray-900: #ffffff;
+    --primary-50: #1e3a5f;
+    --primary-100: #1e40af33;
+    --success-light: #065f4620;
+    --warning-light: #92400e20;
+    --danger-light: #991b1b20;
+    --purple-light: #5b21b620;
+    background: #0f0f23 !important;
+    color: #e5e7eb;
+}
+body.dark-mode .sidebar { background: #0a0a1a; }
+body.dark-mode .main-content { background: #0f0f23; }
+body.dark-mode .topbar { background: #1a1a2e; border-color: #374151; }
+body.dark-mode .card, body.dark-mode .stat-card, body.dark-mode .wp-card,
+body.dark-mode .partner-card, body.dark-mode .meeting-card, body.dark-mode .file-card { background: #1a1a2e; border-color: #374151; }
+body.dark-mode .card-header { border-color: #374151; }
+body.dark-mode .card-footer { background: #1f2937; border-color: #374151; }
+body.dark-mode .data-table th { background: #1f2937; border-color: #374151; color: #9ca3af; }
+body.dark-mode .data-table td { border-color: #374151; color: #d1d5db; }
+body.dark-mode .data-table tr:hover td { background: #1f2937; }
+body.dark-mode .modal { background: #1a1a2e; }
+body.dark-mode .modal-header, body.dark-mode .modal-footer { border-color: #374151; }
+body.dark-mode .form-input, body.dark-mode .form-select, body.dark-mode .form-textarea { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+body.dark-mode .form-input:focus, body.dark-mode .form-select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+body.dark-mode .auth-card { background: #1a1a2e; }
+body.dark-mode .tabs { border-color: #374151; }
+body.dark-mode .tab-btn { color: #9ca3af; }
+body.dark-mode .drop-zone { border-color: #374151; }
+body.dark-mode .drop-zone:hover { border-color: var(--primary); background: #1e3a5f; }
+body.dark-mode .progress-bar { background: #374151; }
+body.dark-mode .task-item { border-color: #374151; }
+body.dark-mode .task-item:hover { background: #1f2937; }
+body.dark-mode .activity-item { border-color: #374151; }
+body.dark-mode .budget-card { background: #1a1a2e; border-color: #374151; }
+body.dark-mode .diss-stat { background: #1a1a2e; border-color: #374151; }
+body.dark-mode .file-item-row { border-color: #374151; }
+body.dark-mode .file-item-row:hover { background: #1f2937; }
+body.dark-mode .sidebar-project-select { border-color: #374151; }
+body.dark-mode .project-selector { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+body.dark-mode .google-btn { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+body.dark-mode .wp-card:hover, body.dark-mode .partner-card:hover, body.dark-mode .file-card:hover { border-color: var(--primary-light); }

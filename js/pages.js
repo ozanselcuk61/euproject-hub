@@ -11,7 +11,8 @@ function renderDashboard(container) {
     if (projectCount === 0) {
         container.innerHTML = '<div class="page-header"><h1>Dashboard</h1></div>' +
             '<div class="empty-state"><i class="fas fa-rocket"></i><h3>Welcome to EUProject Hub!</h3><p>Create your first project to get started.</p>' +
-            '<button class="btn btn-primary btn-lg" onclick="openNewProjectModal()"><i class="fas fa-plus"></i> Create Your First Project</button></div>';
+            '<button class="btn btn-primary btn-lg" onclick="openNewProjectModal()"><i class="fas fa-plus"></i> Create Your First Project</button>' +
+            '<button class="btn btn-secondary btn-lg" onclick="openTemplateModal()" style="margin-left:12px"><i class="fas fa-copy"></i> Use Template</button></div>';
         return;
     }
 
@@ -324,6 +325,21 @@ function handleCreateProject() {
 
     saveProjectToFirestore(id, projectData).then(function() {
         showToast('Project "' + name + '" created!', 'success');
+
+        // Apply template WPs if any
+        if (window._pendingTemplateWPs) {
+            var templateWPs = window._pendingTemplateWPs;
+            window._pendingTemplateWPs = null;
+            WorkPackages[id] = [];
+            templateWPs.forEach(function(twp) {
+                var wpData = { number: twp.number, title: twp.title, start: twp.start, end: twp.end, budget: twp.budget, description: twp.description, lead: '', status: 'pending', progress: 0, deliverables: [] };
+                addToSubCollection(id, 'workpackages', wpData).then(function(result) {
+                    wpData._id = result.id;
+                    WorkPackages[id].push(wpData);
+                });
+            });
+            showToast(templateWPs.length + ' work packages added from template!', 'success');
+        }
     });
 
     AppState.currentProjectId = id;
@@ -395,7 +411,28 @@ function renderOverview(container) {
         '<button class="btn btn-secondary btn-block" onclick="navigateTo(\'workpackages\')" style="justify-content:flex-start"><i class="fas fa-cubes"></i> Add Work Package</button>' +
         '<button class="btn btn-secondary btn-block" onclick="navigateTo(\'tasks\')" style="justify-content:flex-start"><i class="fas fa-plus"></i> Add Task</button>' +
         '<button class="btn btn-secondary btn-block" onclick="navigateTo(\'documents\')" style="justify-content:flex-start"><i class="fas fa-upload"></i> Upload Document</button>' +
-        '<button class="btn btn-primary btn-block" onclick="navigateTo(\'ai-report\')" style="justify-content:flex-start"><i class="fas fa-robot"></i> Generate AI Report</button></div></div></div></div>';
+        '<button class="btn btn-secondary btn-block" onclick="exportProjectData(\'csv\')" style="justify-content:flex-start"><i class="fas fa-file-csv"></i> Export CSV</button>' +
+        '<button class="btn btn-secondary btn-block" onclick="exportProjectJSON()" style="justify-content:flex-start"><i class="fas fa-download"></i> Export JSON Backup</button>' +
+        '<button class="btn btn-primary btn-block" onclick="navigateTo(\'ai-report\')" style="justify-content:flex-start"><i class="fas fa-robot"></i> Generate AI Report</button></div></div></div></div>' +
+
+        // Gantt Chart
+        '<div class="card mb-6"><div class="card-header"><h2><i class="fas fa-chart-gantt"></i> Gantt Chart</h2></div>' +
+        '<div class="card-body" id="ganttContainer"></div></div>' +
+
+        // Partner Map
+        '<div class="card mb-6"><div class="card-header"><h2><i class="fas fa-map-marked-alt"></i> Partner Map</h2></div>' +
+        '<div class="card-body" id="partnerMapContainer"></div></div>' +
+
+        // Timeline
+        '<div class="card"><div class="card-header"><h2><i class="fas fa-stream"></i> Project Timeline</h2></div>' +
+        '<div class="card-body" id="timelineContainer"></div></div>';
+
+    // Render dynamic components
+    setTimeout(function() {
+        if (typeof renderGanttChart === 'function') renderGanttChart(document.getElementById('ganttContainer'));
+        if (typeof renderPartnerMap === 'function') renderPartnerMap(document.getElementById('partnerMapContainer'));
+        if (typeof renderTimeline === 'function') renderTimeline(document.getElementById('timelineContainer'));
+    }, 50);
 }
 
 function openEditProjectModal() {

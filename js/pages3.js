@@ -168,7 +168,10 @@ function renderDissemination(container) {
                             <td style="font-weight:500">${a.title}</td>
                             <td style="font-size:13px">${(a.partner || '').split(' ').slice(-1)[0]}</td>
                             <td style="font-weight:600">${(a.reach || 0).toLocaleString()}</td>
-                            <td><button class="btn btn-sm btn-ghost" style="color:var(--danger);padding:2px 6px" onclick="deleteDissActivity('${a._id || ''}')"><i class="fas fa-trash"></i></button></td>
+                            <td style="white-space:nowrap">
+                                <button class="btn btn-sm btn-ghost" style="padding:2px 6px" onclick="openEditDissActivity('${a._id || ''}')"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-ghost" style="color:var(--danger);padding:2px 6px" onclick="deleteDissActivity('${a._id || ''}')"><i class="fas fa-trash"></i></button>
+                            </td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
@@ -177,19 +180,88 @@ function renderDissemination(container) {
     `;
 }
 
+function getDissFormHTML(a) {
+    var isEdit = !!a;
+    a = a || {};
+    var partners = getCurrentPartners();
+    return '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label">Type</label><select class="form-select" id="dissType">' +
+        ['Event','Publication','Social Media','Newsletter','Website','Press Release','Multiplier Event'].map(function(t) {
+            return '<option' + (a.type === t ? ' selected' : '') + '>' + t + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="dissDate" value="' + (a.date || '') + '"></div></div>' +
+        '<div class="form-group"><label class="form-label">Title / Description</label><input type="text" class="form-input" id="dissTitle" placeholder="Activity title" value="' + (a.title || '') + '"></div>' +
+        '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label">Partner</label><select class="form-select" id="dissPartner">' +
+        (partners.length > 0 ? partners.map(function(p) { return '<option' + (a.partner === p.name ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') : '<option>N/A</option>') +
+        '</select></div>' +
+        '<div class="form-group"><label class="form-label">Estimated Reach</label><input type="number" class="form-input" id="dissReach" placeholder="500" value="' + (a.reach || '') + '"></div>';
+}
+
 function openAddDisseminationModal() {
-    openModal('Log Dissemination Activity', `
-        <div class="form-row">
-            <div class="form-group"><label class="form-label">Type</label><select class="form-select"><option>Event</option><option>Publication</option><option>Social Media</option><option>Newsletter</option><option>Website</option><option>Press Release</option><option>Multiplier Event</option></select></div>
-            <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input"></div>
-        </div>
-        <div class="form-group"><label class="form-label">Title / Description</label><input type="text" class="form-input" placeholder="Activity title"></div>
-        <div class="form-row">
-            <div class="form-group"><label class="form-label">Partner</label><select class="form-select">${getCurrentPartners().map(p => `<option>${p.name}</option>`).join('')}</select></div>
-            <div class="form-group"><label class="form-label">Estimated Reach</label><input type="number" class="form-input" placeholder="500"></div>
-        </div>
-        <div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" placeholder="https://..."></div>
-    `, `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Save Activity</button>`);
+    openModal('Log Dissemination Activity',
+        getDissFormHTML() + '</div>' +
+        '<div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" id="dissLink" placeholder="https://..."></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddDissActivity()"><i class="fas fa-check"></i> Save Activity</button>');
+}
+
+function handleAddDissActivity() {
+    var title = document.getElementById('dissTitle').value.trim();
+    if (!title) { alert('Please enter activity title.'); return; }
+    var pid = AppState.currentProjectId;
+    var data = {
+        type: document.getElementById('dissType').value,
+        date: document.getElementById('dissDate').value,
+        title: title,
+        partner: document.getElementById('dissPartner').value,
+        reach: parseInt(document.getElementById('dissReach').value) || 0,
+        link: document.getElementById('dissLink') ? document.getElementById('dissLink').value : ''
+    };
+    if (!Dissemination[pid]) Dissemination[pid] = { summary: { events: 0, publications: 0, socialReach: 0, website_visits: 0 }, activities: [] };
+    addToSubCollection(pid, 'dissemination', data).then(function(result) {
+        data._id = result.id;
+        Dissemination[pid].activities.push(data);
+        if (data.type === 'Event') Dissemination[pid].summary.events++;
+        if (data.type === 'Publication') Dissemination[pid].summary.publications++;
+        Dissemination[pid].summary.socialReach += data.reach;
+        addActivity(pid, 'logged dissemination', data.title);
+        showToast('Activity logged!', 'success');
+        closeModal();
+        navigateTo('dissemination');
+    });
+}
+
+function openEditDissActivity(docId) {
+    var pid = AppState.currentProjectId;
+    var diss = getCurrentDissemination();
+    var a = (diss.activities || []).find(function(act) { return act._id === docId; });
+    if (!a) return;
+    openModal('Edit Dissemination Activity',
+        getDissFormHTML(a) + '</div>' +
+        '<div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" id="dissLink" placeholder="https://..." value="' + (a.link || '') + '"></div>',
+        '<button class="btn btn-danger" onclick="deleteDissActivity(\'' + docId + '\');closeModal()"><i class="fas fa-trash"></i> Delete</button>' +
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="saveEditDissActivity(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>');
+}
+
+function saveEditDissActivity(docId) {
+    var pid = AppState.currentProjectId;
+    var updates = {
+        type: document.getElementById('dissType').value,
+        date: document.getElementById('dissDate').value,
+        title: document.getElementById('dissTitle').value.trim(),
+        partner: document.getElementById('dissPartner').value,
+        reach: parseInt(document.getElementById('dissReach').value) || 0,
+        link: document.getElementById('dissLink') ? document.getElementById('dissLink').value : ''
+    };
+    var diss = getCurrentDissemination();
+    var a = (diss.activities || []).find(function(act) { return act._id === docId; });
+    if (a) Object.assign(a, updates);
+    updateInSubCollection(pid, 'dissemination', docId, updates).then(function() {
+        showToast('Activity updated', 'success');
+        closeModal();
+        navigateTo('dissemination');
+    });
 }
 
 function deleteDissActivity(docId) {
@@ -528,6 +600,7 @@ function renderSettings(container) {
                         </div>
                         <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" value="${user.email}" disabled></div>
                         <div class="form-group"><label class="form-label">Organization</label><input type="text" class="form-input" id="setOrg" value="${user.organization || ''}"></div>
+                        <div class="form-group"><label class="form-label">Language</label>${typeof getLanguageSelector === 'function' ? getLanguageSelector() : ''}</div>
                         <button class="btn btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> Save Changes</button>
                     </div>
                 </div>
