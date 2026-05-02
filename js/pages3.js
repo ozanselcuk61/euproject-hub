@@ -166,8 +166,9 @@ function renderDissemination(container) {
                             <td>${formatDate(a.date)}</td>
                             <td><span class="status-badge ${a.type==='Event'?'status-active':a.type==='Publication'?'status-completed':a.type==='Social Media'?'status-pending':'status-draft'}">${a.type}</span></td>
                             <td style="font-weight:500">${a.title}</td>
-                            <td style="font-size:13px">${a.partner.split(' ').slice(-1)[0]}</td>
-                            <td style="font-weight:600">${a.reach.toLocaleString()}</td>
+                            <td style="font-size:13px">${(a.partner || '').split(' ').slice(-1)[0]}</td>
+                            <td style="font-weight:600">${(a.reach || 0).toLocaleString()}</td>
+                            <td><button class="btn btn-sm btn-ghost" style="color:var(--danger);padding:2px 6px" onclick="deleteDissActivity('${a._id || ''}')"><i class="fas fa-trash"></i></button></td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
@@ -189,6 +190,17 @@ function openAddDisseminationModal() {
         </div>
         <div class="form-group"><label class="form-label">Link (optional)</label><input type="url" class="form-input" placeholder="https://..."></div>
     `, `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="closeModal()"><i class="fas fa-check"></i> Save Activity</button>`);
+}
+
+function deleteDissActivity(docId) {
+    if (!docId || !confirm('Delete this activity?')) return;
+    var pid = AppState.currentProjectId;
+    deleteFromSubCollection(pid, 'dissemination', docId).then(function() {
+        var diss = Dissemination[pid];
+        if (diss) diss.activities = diss.activities.filter(function(a) { return a._id !== docId; });
+        showToast('Activity deleted', 'info');
+        navigateTo('dissemination');
+    });
 }
 
 // ---- MEETINGS & TPMs ----
@@ -224,15 +236,28 @@ function renderMeetings(container) {
                         ${m.attendees.map(a => `<div class="user-avatar">${a}</div>`).join('')}
                         <span style="font-size:12px;color:var(--gray-400);margin-left:8px">${m.attendees.length} attendees</span>
                     </div>
-                    <button class="btn btn-sm btn-ghost" onclick="openMeetingDetail(${m.id})"><i class="fas fa-eye"></i> Details</button>
+                    <div style="display:flex;gap:4px">
+                        <button class="btn btn-sm btn-ghost" onclick="openMeetingDetail('${m._id || m.id}')"><i class="fas fa-edit"></i> Edit</button>
+                        <button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteMeeting('${m._id || ''}')"><i class="fas fa-trash"></i></button>
+                    </div>
                 </div>
             </div>
         `).join('')}
     `;
 }
 
+function deleteMeeting(docId) {
+    if (!docId || !confirm('Delete this meeting?')) return;
+    var pid = AppState.currentProjectId;
+    deleteFromSubCollection(pid, 'meetings', docId).then(function() {
+        Meetings[pid] = (Meetings[pid] || []).filter(function(m) { return m._id !== docId; });
+        showToast('Meeting deleted', 'info');
+        navigateTo('meetings');
+    });
+}
+
 function openMeetingDetail(meetingId) {
-    const m = getCurrentMeetings().find(mt => mt.id === meetingId);
+    var m = getCurrentMeetings().find(function(mt) { return (mt._id || mt.id) == meetingId; });
     if (!m) return;
     openModal(m.title, `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">

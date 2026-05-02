@@ -31,7 +31,9 @@ function renderPartners(container) {
             '<div style="padding:8px;background:var(--success-light);border-radius:var(--radius)">' +
             '<div style="font-size:16px;font-weight:800;color:var(--success)">' + (p.budget ? Math.round((p.spent || 0) / p.budget * 100) : 0) + '%</div>' +
             '<div style="font-size:10px;color:var(--gray-500)">Utilized</div></div></div>' +
-            '<button class="btn btn-sm btn-ghost mt-4" onclick="deletePartner(\'' + (p._id || '') + '\')"><i class="fas fa-trash"></i> Remove</button></div>';
+            '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center">' +
+            '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openEditPartnerModal(\'' + (p._id || '') + '\')"><i class="fas fa-edit"></i> Edit</button>' +
+            '<button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="event.stopPropagation();deletePartner(\'' + (p._id || '') + '\')"><i class="fas fa-trash"></i> Delete</button></div></div>';
         }).join('') : '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-users"></i><h3>No partners yet</h3><p>Add partner organizations to your project.</p></div>') +
         '</div>';
 }
@@ -82,6 +84,47 @@ function deletePartner(docId) {
     deleteFromSubCollection(pid, 'partners', docId).then(function() {
         Partners[pid] = Partners[pid].filter(function(p) { return p._id !== docId; });
         showToast('Partner removed', 'info');
+        navigateTo('partners');
+    });
+}
+
+function openEditPartnerModal(docId) {
+    var pid = AppState.currentProjectId;
+    var p = getCurrentPartners().find(function(pr) { return pr._id === docId; });
+    if (!p) return;
+    var countries = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Iceland','Ireland','Italy','Latvia','Liechtenstein','Lithuania','Luxembourg','Malta','Netherlands','North Macedonia','Norway','Poland','Portugal','Romania','Serbia','Slovakia','Slovenia','Spain','Sweden','Turkey'];
+    openModal('Edit Partner',
+        '<div class="form-group"><label class="form-label">Organization Name</label><input type="text" class="form-input" id="epPartName" value="' + (p.name || '') + '"></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Country</label><select class="form-select" id="epPartCountry">' +
+        countries.map(function(c) { return '<option' + (p.country === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Role</label><select class="form-select" id="epPartRole">' +
+        '<option value="partner"' + (p.role === 'partner' ? ' selected' : '') + '>Partner</option>' +
+        '<option value="coordinator"' + (p.role === 'coordinator' ? ' selected' : '') + '>Coordinator</option>' +
+        '<option value="associated"' + (p.role === 'associated' ? ' selected' : '') + '>Associated Partner</option></select></div></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Contact Person</label><input type="text" class="form-input" id="epPartContact" value="' + (p.contact || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="epPartEmail" value="' + (p.email || '') + '"></div></div>' +
+        '<div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="epPartBudget" value="' + (p.budget || 0) + '"></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="saveEditPartner(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>');
+}
+
+function saveEditPartner(docId) {
+    var pid = AppState.currentProjectId;
+    var name = document.getElementById('epPartName').value.trim();
+    var updates = {
+        name: name,
+        country: document.getElementById('epPartCountry').value,
+        role: document.getElementById('epPartRole').value,
+        contact: document.getElementById('epPartContact').value.trim(),
+        email: document.getElementById('epPartEmail').value.trim(),
+        budget: parseInt(document.getElementById('epPartBudget').value) || 0,
+        initials: name.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase()
+    };
+    var partner = getCurrentPartners().find(function(pr) { return pr._id === docId; });
+    if (partner) Object.assign(partner, updates);
+    updateInSubCollection(pid, 'partners', docId, updates).then(function() {
+        showToast('Partner updated', 'success');
+        closeModal();
         navigateTo('partners');
     });
 }
@@ -152,16 +195,22 @@ function handleAddWP() {
 function openWPDetail(docId) {
     var wp = getCurrentWPs().find(function(w) { return w._id === docId; });
     if (!wp) return;
+    var partners = getCurrentPartners();
+    var leadOptions = partners.length > 0 ? partners.map(function(p) { return '<option' + (wp.lead === p.name ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') : '<option>' + (wp.lead || 'N/A') + '</option>';
+
     openModal(wp.number + ': ' + wp.title,
-        '<div style="margin-bottom:16px"><span class="status-badge status-' + (wp.status || 'pending') + '">' + (wp.status || 'pending') + '</span>' +
-        ' <span style="margin-left:8px;font-size:13px;color:var(--gray-500)">Lead: ' + (wp.lead || 'N/A') + '</span></div>' +
-        '<p style="color:var(--gray-600);line-height:1.7;margin-bottom:20px">' + (wp.description || 'No description.') + '</p>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">' +
-        '<div style="text-align:center;padding:12px;background:var(--gray-50);border-radius:var(--radius)"><div style="font-size:20px;font-weight:800;color:var(--primary)">' + (wp.progress || 0) + '%</div><div style="font-size:11px;color:var(--gray-500)">Complete</div></div>' +
-        '<div style="text-align:center;padding:12px;background:var(--gray-50);border-radius:var(--radius)"><div style="font-size:20px;font-weight:800">' + formatCurrency(wp.budget) + '</div><div style="font-size:11px;color:var(--gray-500)">Budget</div></div>' +
-        '<div style="text-align:center;padding:12px;background:var(--gray-50);border-radius:var(--radius)"><div style="font-size:20px;font-weight:800">' + (wp.start || '') + '-' + (wp.end || '') + '</div><div style="font-size:11px;color:var(--gray-500)">Timeline</div></div></div>' +
-        '<div class="form-group"><label class="form-label">Update Progress (%)</label><input type="range" min="0" max="100" step="5" value="' + (wp.progress || 0) + '" id="wpProgress" style="width:100%" oninput="document.getElementById(\'wpProgVal\').textContent=this.value+\'%\'"> <span id="wpProgVal">' + (wp.progress || 0) + '%</span></div>' +
-        '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="wpStatus"><option ' + (wp.status === 'pending' ? 'selected' : '') + '>pending</option><option ' + (wp.status === 'active' ? 'selected' : '') + '>active</option><option ' + (wp.status === 'completed' ? 'selected' : '') + '>completed</option></select></div>',
+        '<div class="form-row"><div class="form-group"><label class="form-label">WP Number</label>' +
+        '<input type="text" class="form-input" id="ewpNum" value="' + (wp.number || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Lead Partner</label>' +
+        '<select class="form-select" id="ewpLead">' + leadOptions + '</select></div></div>' +
+        '<div class="form-group"><label class="form-label">Title</label><input type="text" class="form-input" id="ewpTitle" value="' + (wp.title || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="ewpDesc" rows="3">' + (wp.description || '') + '</textarea></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Start (Month)</label><input type="text" class="form-input" id="ewpStart" value="' + (wp.start || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">End (Month)</label><input type="text" class="form-input" id="ewpEnd" value="' + (wp.end || '') + '"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="ewpBudget" value="' + (wp.budget || 0) + '"></div>' +
+        '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="ewpStatus"><option ' + (wp.status === 'pending' ? 'selected' : '') + '>pending</option><option ' + (wp.status === 'active' ? 'selected' : '') + '>active</option><option ' + (wp.status === 'completed' ? 'selected' : '') + '>completed</option></select></div></div>' +
+        '<div class="form-group"><label class="form-label">Progress: <strong id="ewpProgVal">' + (wp.progress || 0) + '%</strong></label>' +
+        '<input type="range" min="0" max="100" step="5" value="' + (wp.progress || 0) + '" id="ewpProgress" style="width:100%" oninput="document.getElementById(\'ewpProgVal\').textContent=this.value+\'%\'"></div>',
         '<button class="btn btn-danger" onclick="deleteWP(\'' + docId + '\')"><i class="fas fa-trash"></i> Delete</button>' +
         '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
         '<button class="btn btn-primary" onclick="saveWPUpdate(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>', true);
@@ -169,11 +218,20 @@ function openWPDetail(docId) {
 
 function saveWPUpdate(docId) {
     var pid = AppState.currentProjectId;
-    var progress = parseInt(document.getElementById('wpProgress').value);
-    var status = document.getElementById('wpStatus').value;
+    var updates = {
+        number: document.getElementById('ewpNum').value.trim(),
+        title: document.getElementById('ewpTitle').value.trim(),
+        lead: document.getElementById('ewpLead').value,
+        description: document.getElementById('ewpDesc').value.trim(),
+        start: document.getElementById('ewpStart').value.trim(),
+        end: document.getElementById('ewpEnd').value.trim(),
+        budget: parseInt(document.getElementById('ewpBudget').value) || 0,
+        status: document.getElementById('ewpStatus').value,
+        progress: parseInt(document.getElementById('ewpProgress').value)
+    };
     var wp = getCurrentWPs().find(function(w) { return w._id === docId; });
-    if (wp) { wp.progress = progress; wp.status = status; }
-    updateInSubCollection(pid, 'workpackages', docId, { progress: progress, status: status }).then(function() {
+    if (wp) Object.assign(wp, updates);
+    updateInSubCollection(pid, 'workpackages', docId, updates).then(function() {
         showToast('Work package updated', 'success');
         closeModal();
         navigateTo('workpackages');
@@ -219,11 +277,14 @@ function renderTaskColumn(title, tasks, color) {
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
         '<span class="wp-number" style="font-size:10px">' + (t.wp || '') + '</span>' +
         '<span style="font-size:11px;color:var(--gray-400)">' + formatDate(t.due) + '</span></div>' +
-        '<div style="margin-top:8px;display:flex;gap:4px">' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'pending\')">P</button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'in_progress\')">IP</button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'completed\')">D</button>' +
-        '<button class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:10px;color:var(--danger)" onclick="deleteTask(\'' + (t._id || '') + '\')"><i class="fas fa-trash"></i></button></div></div>';
+        '<div style="margin-top:8px;display:flex;gap:4px;justify-content:space-between">' +
+        '<div style="display:flex;gap:2px">' +
+        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'pending\')" title="Pending">P</button>' +
+        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'in_progress\')" title="In Progress">IP</button>' +
+        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="changeTaskStatus(\'' + (t._id || '') + '\',\'completed\')" title="Done">D</button></div>' +
+        '<div style="display:flex;gap:2px">' +
+        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px" onclick="openEditTaskModal(\'' + (t._id || '') + '\')" title="Edit"><i class="fas fa-edit"></i></button>' +
+        '<button class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:10px;color:var(--danger)" onclick="deleteTask(\'' + (t._id || '') + '\')" title="Delete"><i class="fas fa-trash"></i></button></div></div></div>';
     }).join('') : '<p class="text-sm text-muted" style="text-align:center;padding:20px">No tasks</p>') +
     '</div></div>';
 }
@@ -287,6 +348,53 @@ function deleteTask(docId) {
     var pid = AppState.currentProjectId;
     deleteFromSubCollection(pid, 'tasks', docId).then(function() {
         Tasks[pid] = Tasks[pid].filter(function(t) { return t._id !== docId; });
+        navigateTo('tasks');
+    });
+}
+
+function openEditTaskModal(docId) {
+    var pid = AppState.currentProjectId;
+    var t = getCurrentTasks().find(function(task) { return task._id === docId; });
+    if (!t) return;
+    var wps = getCurrentWPs();
+    var partners = getCurrentPartners();
+    openModal('Edit Task',
+        '<div class="form-group"><label class="form-label">Task Title</label><input type="text" class="form-input" id="etTitle" value="' + (t.title || '') + '"></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Work Package</label><select class="form-select" id="etWP"><option value="">None</option>' +
+        wps.map(function(w) { return '<option value="' + (w.number || '') + '"' + (t.wp === (w.number || '') ? ' selected' : '') + '>' + (w.number || '') + ' - ' + w.title + '</option>'; }).join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Assignee</label><select class="form-select" id="etAssignee"><option value="">Unassigned</option>' +
+        partners.map(function(p) { return '<option' + (t.assignee === (p.contact || p.name) ? ' selected' : '') + '>' + (p.contact || p.name) + '</option>'; }).join('') + '</select></div></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Due Date</label><input type="date" class="form-input" id="etDue" value="' + (t.due || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Priority</label><select class="form-select" id="etPriority">' +
+        '<option' + (t.priority === 'low' ? ' selected' : '') + '>low</option>' +
+        '<option' + (t.priority === 'medium' ? ' selected' : '') + '>medium</option>' +
+        '<option' + (t.priority === 'high' ? ' selected' : '') + '>high</option></select></div></div>' +
+        '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="etStatus">' +
+        '<option value="pending"' + (t.status === 'pending' ? ' selected' : '') + '>Pending</option>' +
+        '<option value="in_progress"' + (t.status === 'in_progress' ? ' selected' : '') + '>In Progress</option>' +
+        '<option value="completed"' + (t.status === 'completed' ? ' selected' : '') + '>Completed</option></select></div>',
+        '<button class="btn btn-danger" onclick="deleteTask(\'' + docId + '\');closeModal()"><i class="fas fa-trash"></i> Delete</button>' +
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="saveEditTask(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>');
+}
+
+function saveEditTask(docId) {
+    var pid = AppState.currentProjectId;
+    var assignee = document.getElementById('etAssignee').value;
+    var updates = {
+        title: document.getElementById('etTitle').value.trim(),
+        wp: document.getElementById('etWP').value,
+        assignee: assignee,
+        assigneeInitials: assignee ? assignee.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase() : '',
+        due: document.getElementById('etDue').value,
+        priority: document.getElementById('etPriority').value,
+        status: document.getElementById('etStatus').value
+    };
+    var task = getCurrentTasks().find(function(t) { return t._id === docId; });
+    if (task) Object.assign(task, updates);
+    updateInSubCollection(pid, 'tasks', docId, updates).then(function() {
+        showToast('Task updated', 'success');
+        closeModal();
         navigateTo('tasks');
     });
 }
