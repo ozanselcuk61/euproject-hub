@@ -140,15 +140,15 @@ function updateProjectSelector() {
     var selector = document.getElementById('projectSelector');
     if (!selector) return;
     selector.innerHTML = '';
-    var ids = Object.keys(Projects);
-    if (ids.length === 0) {
-        var opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No projects yet';
-        selector.appendChild(opt);
-        return;
-    }
-    ids.filter(function(id) { return Projects[id].status !== 'archived'; }).forEach(function(id) {
+    var ids = Object.keys(Projects).filter(function(id) { return Projects[id].status !== 'archived'; });
+    // Default option
+    var defOpt = document.createElement('option');
+    defOpt.value = '';
+    defOpt.textContent = ids.length === 0 ? 'No projects yet' : 'Select project...';
+    if (!AppState.currentProjectId) defOpt.selected = true;
+    selector.appendChild(defOpt);
+    // Project options
+    ids.forEach(function(id) {
         var p = Projects[id];
         var opt = document.createElement('option');
         opt.value = id;
