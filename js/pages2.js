@@ -69,6 +69,7 @@ function handleAddPartner() {
         data.id = result.id;
         Partners[pid].push(data);
         addActivity(pid, 'added partner', name);
+        if (typeof notifyPartnerAdded === 'function') notifyPartnerAdded(data, getCurrentProject());
         showToast('Partner "' + name + '" added!', 'success');
         closeModal();
         navigateTo('partners');
@@ -260,6 +261,11 @@ function handleAddTask() {
         data._id = result.id;
         Tasks[pid].push(data);
         addActivity(pid, 'created task', title);
+        // Send email notification to assignee
+        if (typeof notifyTaskAssigned === 'function' && data.assignee) {
+            var partner = getCurrentPartners().find(function(p) { return p.contact === data.assignee || p.name === data.assignee; });
+            if (partner && partner.email) notifyTaskAssigned(data, partner.email, getCurrentProject());
+        }
         showToast('Task created!', 'success');
         closeModal();
         navigateTo('tasks');

@@ -5,14 +5,8 @@
 
 // ---- DASHBOARD ----
 function renderDashboard(container) {
-    var project = getCurrentProject();
-    var partners = getCurrentPartners();
-    var tasks = getCurrentTasks();
-    var activities = getCurrentActivities();
-    var progress = getProjectProgress();
-    var totalSpent = partners.reduce(function(s, p) { return s + (p.spent || 0); }, 0);
-    var openTasks = tasks.filter(function(t) { return t.status !== 'completed'; }).length;
-    var projectCount = Object.keys(Projects).length;
+    var allProjects = Object.values(Projects).filter(function(p) { return p.status !== 'archived'; });
+    var projectCount = allProjects.length;
 
     if (projectCount === 0) {
         container.innerHTML = '<div class="page-header"><h1>Dashboard</h1></div>' +
@@ -21,10 +15,32 @@ function renderDashboard(container) {
         return;
     }
 
+    // Aggregate stats across ALL projects
+    var totalBudget = 0;
+    var totalPartners = 0;
+    var totalOpenTasks = 0;
+    var totalAllTasks = 0;
+    var totalWPs = 0;
+    var overallProgress = 0;
+    var wpCount = 0;
+
+    allProjects.forEach(function(p) {
+        totalBudget += (p.totalBudget || 0);
+        totalPartners += (Partners[p.id] || []).length;
+        var pTasks = Tasks[p.id] || [];
+        totalAllTasks += pTasks.length;
+        totalOpenTasks += pTasks.filter(function(t) { return t.status !== 'completed'; }).length;
+        var pWPs = WorkPackages[p.id] || [];
+        totalWPs += pWPs.length;
+        pWPs.forEach(function(wp) { overallProgress += (wp.progress || 0); wpCount++; });
+    });
+    var avgProgress = wpCount > 0 ? Math.round(overallProgress / wpCount) : 0;
+
     container.innerHTML =
         '<div class="page-header"><h1>Dashboard</h1><div class="page-header-actions">' +
         '<button class="btn btn-primary" onclick="openNewProjectModal()"><i class="fas fa-plus"></i> New Project</button></div></div>' +
 
+        // Global stats
         '<div class="stats-grid">' +
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Active Projects</span>' +
         '<div class="stat-card-icon" style="background:var(--primary-50);color:var(--primary)"><i class="fas fa-project-diagram"></i></div></div>' +
@@ -32,48 +48,89 @@ function renderDashboard(container) {
 
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Overall Progress</span>' +
         '<div class="stat-card-icon" style="background:var(--success-light);color:var(--success)"><i class="fas fa-chart-line"></i></div></div>' +
-        '<div class="stat-card-value">' + progress + '%</div>' +
-        '<div class="progress-bar mt-4"><div class="progress-fill" style="width:' + progress + '%"></div></div></div>' +
+        '<div class="stat-card-value">' + avgProgress + '%</div>' +
+        '<div class="progress-bar mt-4"><div class="progress-fill" style="width:' + avgProgress + '%"></div></div></div>' +
 
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Open Tasks</span>' +
         '<div class="stat-card-icon" style="background:var(--warning-light);color:var(--warning)"><i class="fas fa-tasks"></i></div></div>' +
-        '<div class="stat-card-value">' + openTasks + '</div></div>' +
+        '<div class="stat-card-value">' + totalOpenTasks + '</div>' +
+        '<div class="stat-card-change">' + totalAllTasks + ' total across all projects</div></div>' +
 
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Total Budget</span>' +
         '<div class="stat-card-icon" style="background:var(--purple-light);color:var(--purple)"><i class="fas fa-euro-sign"></i></div></div>' +
-        '<div class="stat-card-value">' + formatCurrency(project.totalBudget) + '</div></div>' +
+        '<div class="stat-card-value">' + formatCurrency(totalBudget) + '</div>' +
+        '<div class="stat-card-change">' + totalPartners + ' partners &middot; ' + totalWPs + ' work packages</div></div>' +
         '</div>' +
 
+        // Project cards
+        '<div class="card mb-6"><div class="card-header"><h2><i class="fas fa-folder-open"></i> My Projects</h2>' +
+        '<button class="btn btn-sm btn-ghost" onclick="navigateTo(\'projects\')">View All</button></div>' +
+        '<div class="card-body" style="padding:16px"><div class="wp-grid">' +
+        allProjects.map(function(p) {
+            var pWPs = WorkPackages[p.id] || [];
+            var pPartners = Partners[p.id] || [];
+            var pTasks = Tasks[p.id] || [];
+            var pProgress = pWPs.length > 0 ? Math.round(pWPs.reduce(function(s, w) { return s + (w.progress || 0); }, 0) / pWPs.length) : 0;
+            var pOpenTasks = pTasks.filter(function(t) { return t.status !== 'completed'; }).length;
+
+            return '<div class="wp-card" onclick="AppState.currentProjectId=\'' + p.id + '\';updateProjectSelector();navigateTo(\'overview\')" style="cursor:pointer">' +
+                '<div class="wp-card-header"><span class="wp-number">' + (p.programme || 'EU Project') + '</span>' +
+                '<span class="status-badge status-active">Active</span></div>' +
+                '<h3>' + p.name + '</h3>' +
+                '<div style="margin:12px 0"><div class="progress-label"><span>Progress</span><span>' + pProgress + '%</span></div>' +
+                '<div class="progress-bar"><div class="progress-fill ' + (pProgress === 100 ? 'success' : '') + '" style="width:' + pProgress + '%"></div></div></div>' +
+                '<div class="wp-meta">' +
+                '<span><i class="fas fa-users"></i> ' + pPartners.length + ' partners</span>' +
+                '<span><i class="fas fa-tasks"></i> ' + pOpenTasks + ' open tasks</span>' +
+                '<span><i class="fas fa-euro-sign"></i> ' + formatCurrency(p.totalBudget) + '</span></div></div>';
+        }).join('') +
+        '</div></div></div>' +
+
+        // Recent tasks across all projects
         '<div class="content-grid"><div>' +
-        '<div class="card mb-6"><div class="card-header"><h2><i class="fas fa-cubes"></i> Work Package Progress</h2>' +
-        '<button class="btn btn-sm btn-ghost" onclick="navigateTo(\'workpackages\')">Manage WPs</button></div><div class="card-body">' +
-        (getCurrentWPs().length > 0 ? getCurrentWPs().map(function(wp) {
-            return '<div style="margin-bottom:16px"><div class="progress-label"><span>' + (wp.number || '') + ': ' + wp.title + '</span><span>' + (wp.progress || 0) + '%</span></div>' +
-            '<div class="progress-bar"><div class="progress-fill ' + (wp.progress === 100 ? 'success' : '') + '" style="width:' + (wp.progress || 0) + '%"></div></div></div>';
-        }).join('') : '<p class="text-sm text-muted">No work packages yet. <a href="#" onclick="navigateTo(\'workpackages\');return false">Add one</a></p>') +
-        '</div></div></div>' +
-
-        '<div>' +
-        '<div class="card mb-6"><div class="card-header"><h2><i class="fas fa-clipboard-check"></i> My Tasks</h2>' +
-        '<button class="btn btn-sm btn-ghost" onclick="navigateTo(\'tasks\')">All Tasks</button></div>' +
+        '<div class="card"><div class="card-header"><h2><i class="fas fa-clipboard-check"></i> Open Tasks (All Projects)</h2></div>' +
         '<div class="card-body" style="padding:0"><div class="task-list">' +
-        (tasks.filter(function(t) { return t.status !== 'completed'; }).length > 0 ?
-        tasks.filter(function(t) { return t.status !== 'completed'; }).slice(0, 5).map(function(t) {
-            return '<div class="task-item"><div class="task-checkbox" onclick="toggleTask(\'' + (t._id || '') + '\')"></div>' +
-            '<div class="task-info"><div class="task-title">' + t.title + '</div>' +
-            '<div class="task-due">' + (t.wp ? '<span class="wp-number" style="font-size:10px">' + t.wp + '</span> ' : '') + 'Due: ' + formatDate(t.due) + '</div></div></div>';
-        }).join('') : '<div class="empty-state" style="padding:30px"><p>No open tasks</p></div>') +
-        '</div></div></div>' +
+        (function() {
+            var allTasks = [];
+            allProjects.forEach(function(p) {
+                (Tasks[p.id] || []).forEach(function(t) {
+                    if (t.status !== 'completed') {
+                        allTasks.push({ task: t, projectName: p.name, projectId: p.id });
+                    }
+                });
+            });
+            if (allTasks.length === 0) return '<div class="empty-state" style="padding:30px"><p>No open tasks across any project</p></div>';
+            return allTasks.slice(0, 8).map(function(item) {
+                return '<div class="task-item">' +
+                    '<div class="task-info"><div class="task-title">' + item.task.title + '</div>' +
+                    '<div class="task-due"><span class="wp-number" style="font-size:10px">' + item.projectName + '</span> ' +
+                    (item.task.wp ? '<span class="wp-number" style="font-size:10px;margin-left:4px">' + item.task.wp + '</span> ' : '') +
+                    (item.task.due ? 'Due: ' + formatDate(item.task.due) : '') + '</div></div>' +
+                    '<span class="status-badge status-' + (item.task.priority === 'high' ? 'overdue' : 'pending') + '">' + (item.task.priority || 'medium') + '</span></div>';
+            }).join('');
+        })() +
+        '</div></div></div></div>' +
 
-        '<div class="card"><div class="card-header"><h2><i class="fas fa-users"></i> Partners</h2>' +
-        '<button class="btn btn-sm btn-ghost" onclick="navigateTo(\'partners\')">View All</button></div><div class="card-body">' +
-        (partners.length > 0 ? partners.slice(0, 4).map(function(p) {
-            return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gray-100)">' +
-            '<div class="user-avatar" style="width:36px;height:36px;font-size:12px">' + (p.initials || 'P') + '</div>' +
-            '<div style="flex:1"><div style="font-size:13px;font-weight:600">' + p.name + '</div>' +
-            '<div style="font-size:11px;color:var(--gray-400)">' + (p.country || '') + '</div></div>' +
-            '<span class="partner-role ' + (p.role === 'coordinator' ? 'role-coordinator' : 'role-partner') + '">' + (p.role || 'partner') + '</span></div>';
-        }).join('') : '<p class="text-sm text-muted">No partners yet. <a href="#" onclick="navigateTo(\'partners\');return false">Add one</a></p>') +
+        // Partners summary across all projects
+        '<div>' +
+        '<div class="card"><div class="card-header"><h2><i class="fas fa-users"></i> All Partners (' + totalPartners + ')</h2></div>' +
+        '<div class="card-body">' +
+        (function() {
+            var allPartners = [];
+            allProjects.forEach(function(p) {
+                (Partners[p.id] || []).forEach(function(pr) {
+                    allPartners.push({ partner: pr, projectName: p.name });
+                });
+            });
+            if (allPartners.length === 0) return '<p class="text-sm text-muted">No partners added yet.</p>';
+            return allPartners.slice(0, 6).map(function(item) {
+                return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gray-100)">' +
+                    '<div class="user-avatar" style="width:36px;height:36px;font-size:12px">' + (item.partner.initials || 'P') + '</div>' +
+                    '<div style="flex:1"><div style="font-size:13px;font-weight:600">' + item.partner.name + '</div>' +
+                    '<div style="font-size:11px;color:var(--gray-400)">' + (item.partner.country || '') + ' &middot; ' + item.projectName + '</div></div>' +
+                    '<span class="partner-role ' + (item.partner.role === 'coordinator' ? 'role-coordinator' : 'role-partner') + '">' + (item.partner.role || 'partner') + '</span></div>';
+            }).join('');
+        })() +
         '</div></div></div></div>';
 }
 

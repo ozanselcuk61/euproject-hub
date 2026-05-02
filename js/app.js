@@ -126,6 +126,7 @@ function showApp() {
         setupProjectSelector();
         setupModal();
         initStripe();
+        initEmailJS();
         appInitialized = true;
     }
 

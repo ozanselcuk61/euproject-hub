@@ -38,6 +38,7 @@ function sendPartnerInvite() {
     // Save invite to Firestore
     db.collection('invites').add(invite).then(function(ref) {
         addActivity(pid, 'invited', email + ' as ' + role);
+        if (typeof notifyPartnerInvited === 'function') notifyPartnerInvited(email, AppState.currentUser.name, project.name, role);
         showToast('Invitation sent to ' + email, 'success');
         closeModal();
     }).catch(function(err) {
