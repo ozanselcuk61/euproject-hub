@@ -3,7 +3,7 @@
    Gantt Chart, Timeline, Templates, Export, Map, Dark Mode
    ==================================== */
 
-// ---- GANTT CHART ----
+// ---- GANTT CHART (with Activities) ----
 function renderGanttChart(container) {
     var wps = getCurrentWPs();
     var project = getCurrentProject();
@@ -15,8 +15,8 @@ function renderGanttChart(container) {
 
     var colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#14b8a6'];
 
-    var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:' + (duration * 36 + 200) + 'px">' +
-        '<thead><tr><th style="text-align:left;padding:8px 12px;font-size:12px;color:var(--gray-500);min-width:180px;position:sticky;left:0;background:#fff;z-index:1">Work Package</th>';
+    var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:' + (duration * 36 + 260) + 'px">' +
+        '<thead><tr><th style="text-align:left;padding:8px 12px;font-size:12px;color:var(--gray-500);min-width:240px;position:sticky;left:0;background:#fff;z-index:1">Work Package / Activity</th>';
     months.forEach(function(m) {
         html += '<th style="text-align:center;padding:4px;font-size:10px;color:var(--gray-400);min-width:32px">' + m + '</th>';
     });
@@ -26,15 +26,27 @@ function renderGanttChart(container) {
         var startMonth = parseInt((wp.start || 'M1').replace('M', '')) || 1;
         var endMonth = parseInt((wp.end || 'M' + duration).replace('M', '')) || duration;
         var color = colors[idx % colors.length];
+        var activities = wp.activities || [];
 
-        html += '<tr><td style="padding:8px 12px;font-size:13px;font-weight:600;position:sticky;left:0;background:#fff;z-index:1">' +
-            '<span class="wp-number" style="font-size:10px;margin-right:6px">' + (wp.number || '') + '</span>' + wp.title + '</td>';
+        // WP row (bold, full color)
+        html += '<tr style="background:var(--gray-50)">' +
+            '<td style="padding:8px 12px;font-size:13px;font-weight:700;position:sticky;left:0;background:var(--gray-50);z-index:1">' +
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';margin-right:8px"></span>' +
+            '<span style="color:' + color + '">' + (wp.number || '') + '</span> ' + wp.title +
+            '<span style="font-size:10px;color:var(--gray-400);font-weight:500;margin-left:8px">' + (wp.progress || 0) + '%</span>' +
+            (activities.length > 0 ? '<span style="font-size:10px;color:var(--gray-400);font-weight:500;margin-left:4px">· ' + activities.length + ' activities</span>' : '') +
+            '</td>';
 
         for (var m = 1; m <= duration; m++) {
             if (m >= startMonth && m <= endMonth) {
                 var isStart = m === startMonth;
                 var isEnd = m === endMonth;
-                html += '<td style="padding:2px 0"><div style="height:24px;background:' + color + ';opacity:' + (wp.progress === 100 ? '1' : '0.7') + ';' +
+                // Show progress fill within the bar
+                var barWidth = endMonth - startMonth + 1;
+                var progressMonths = Math.round(barWidth * (wp.progress || 0) / 100);
+                var isInProgress = (m - startMonth) < progressMonths;
+
+                html += '<td style="padding:2px 0"><div style="height:26px;background:' + color + ';opacity:' + (isInProgress ? '1' : '0.35') + ';' +
                     (isStart ? 'border-radius:4px 0 0 4px;margin-left:2px;' : '') +
                     (isEnd ? 'border-radius:0 4px 4px 0;margin-right:2px;' : '') +
                     'display:flex;align-items:center;justify-content:center">' +
@@ -45,19 +57,79 @@ function renderGanttChart(container) {
             }
         }
         html += '</tr>';
+
+        // Activity rows (indented, lighter color)
+        activities.forEach(function(act, aIdx) {
+            var actColor = color + '90';
+            // Try to estimate activity timeline within WP range
+            var actStart = startMonth;
+            var actEnd = endMonth;
+
+            // If activity has a deadline, use it to estimate end month
+            if (act.deadline && project.startDate) {
+                var projStart = new Date(project.startDate);
+                var actDeadline = new Date(act.deadline);
+                var monthsDiff = Math.round((actDeadline - projStart) / (1000 * 60 * 60 * 24 * 30));
+                if (monthsDiff > 0 && monthsDiff <= duration) {
+                    actEnd = Math.min(monthsDiff, endMonth);
+                }
+            }
+
+            // Distribute activities across WP timeline
+            var actSpan = endMonth - startMonth + 1;
+            var actSlice = Math.max(1, Math.floor(actSpan / Math.max(activities.length, 1)));
+            var estimatedStart = startMonth + (aIdx * actSlice);
+            var estimatedEnd = Math.min(estimatedStart + actSlice - 1, endMonth);
+            if (act.deadline && project.startDate) {
+                estimatedEnd = actEnd;
+                estimatedStart = Math.max(startMonth, estimatedEnd - actSlice + 1);
+            }
+
+            html += '<tr>' +
+                '<td style="padding:4px 12px 4px 36px;font-size:12px;position:sticky;left:0;background:#fff;z-index:1;color:var(--gray-600)">' +
+                '<span style="color:' + color + ';font-weight:600;margin-right:4px">A' + (aIdx + 1) + '</span> ' +
+                '<span style="' + (act.completed ? 'text-decoration:line-through;opacity:0.5' : '') + '">' + (act.title || '').substring(0, 40) + (act.title && act.title.length > 40 ? '...' : '') + '</span>' +
+                (act.completed ? ' <i class="fas fa-check-circle" style="color:var(--success);font-size:10px"></i>' : '') +
+                (act.deadline ? '<span style="font-size:10px;color:var(--gray-400);margin-left:6px">' + formatDate(act.deadline) + '</span>' : '') +
+                '</td>';
+
+            for (var m = 1; m <= duration; m++) {
+                if (m >= estimatedStart && m <= estimatedEnd) {
+                    var aIsStart = m === estimatedStart;
+                    var aIsEnd = m === estimatedEnd;
+                    html += '<td style="padding:2px 0"><div style="height:16px;background:' + color + ';opacity:' + (act.completed ? '0.9' : '0.4') + ';' +
+                        (aIsStart ? 'border-radius:3px 0 0 3px;margin-left:4px;' : '') +
+                        (aIsEnd ? 'border-radius:0 3px 3px 0;margin-right:4px;' : '') +
+                        '"></div></td>';
+                } else {
+                    html += '<td></td>';
+                }
+            }
+            html += '</tr>';
+        });
+
+        // Separator row between WPs
+        html += '<tr><td colspan="' + (duration + 1) + '" style="padding:0;height:4px"></td></tr>';
     });
 
     // Current month indicator
     var elapsed = getMonthsElapsed(project.startDate);
     if (elapsed > 0 && elapsed <= duration) {
-        html += '<tr><td style="padding:4px 12px;font-size:11px;color:var(--danger);font-weight:600;position:sticky;left:0;background:#fff">Today</td>';
+        html += '<tr><td style="padding:4px 12px;font-size:11px;color:var(--danger);font-weight:600;position:sticky;left:0;background:#fff"><i class="fas fa-map-pin"></i> Today (M' + elapsed + ')</td>';
         for (var m = 1; m <= duration; m++) {
             html += '<td style="padding:0">' + (m === elapsed ? '<div style="width:2px;height:100%;min-height:20px;background:var(--danger);margin:0 auto"></div>' : '') + '</td>';
         }
         html += '</tr>';
     }
 
+    // Legend
     html += '</tbody></table></div>';
+    html += '<div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--gray-500);flex-wrap:wrap">' +
+        '<span><span style="display:inline-block;width:20px;height:10px;background:var(--primary);opacity:1;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Completed progress</span>' +
+        '<span><span style="display:inline-block;width:20px;height:10px;background:var(--primary);opacity:0.35;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Remaining</span>' +
+        '<span><span style="display:inline-block;width:20px;height:6px;background:var(--primary);opacity:0.4;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Activity</span>' +
+        '<span><span style="display:inline-block;width:2px;height:12px;background:var(--danger);vertical-align:middle;margin-right:4px"></span> Today</span>' +
+        '</div>';
     container.innerHTML = html;
 }
 
