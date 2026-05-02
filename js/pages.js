@@ -216,7 +216,7 @@ function unarchiveProject(pid) {
 
 // ---- CREATE PROJECT ----
 function openNewProjectModal() {
-    if (!requirePremium("create a new project")) return;
+    if (!requirePremiumForProjectCreation()) return;
     openModal('Create New Project',
         '<div class="form-group"><label class="form-label">Project Name *</label>' +
         '<input type="text" class="form-input" id="npName" placeholder="e.g., DigiSkills4EU"></div>' +

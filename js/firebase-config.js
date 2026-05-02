@@ -204,7 +204,9 @@ function setupAuthListener() {
                     role: (userData && userData.role) || 'Coordinator',
                     plan: (userData && userData.plan) || 'trial',
                     organization: (userData && userData.organization) || '',
-                    photoURL: user.photoURL || null
+                    photoURL: user.photoURL || null,
+                    trialEnd: (userData && userData.trialEnd) || null,
+                    projectAccess: (userData && userData.projectAccess) || []
                 };
 
                 // Load user's projects from Firestore

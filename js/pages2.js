@@ -53,10 +53,12 @@ function renderPartners(container) {
             (isCoord ? '<span style="background:var(--primary);color:#fff;padding:2px 8px;border-radius:50px;font-size:10px;font-weight:700">COORDINATOR</span>' :
             '<span style="background:var(--gray-100);color:var(--gray-600);padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600">' + (p.role || 'partner').toUpperCase() + '</span>') +
             '</div>' +
-            '<div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--gray-500)">' +
+            '<div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--gray-500);flex-wrap:wrap">' +
             '<span>' + flag + ' ' + (p.country || 'N/A') + '</span>' +
             (p.contact ? '<span><i class="fas fa-user" style="margin-right:3px"></i>' + p.contact + '</span>' : '') +
             (p.email ? '<span><i class="fas fa-envelope" style="margin-right:3px"></i>' + p.email + '</span>' : '') +
+            (p.contact2 ? '<span style="border-left:1px solid var(--gray-300);padding-left:8px"><i class="fas fa-user" style="margin-right:3px"></i>' + p.contact2 + '</span>' : '') +
+            (p.email2 ? '<span><i class="fas fa-envelope" style="margin-right:3px"></i>' + p.email2 + '</span>' : '') +
             '</div></div>' +
 
             // Budget
@@ -94,22 +96,32 @@ function openAddPartnerModal() {
         '<div class="form-row"><div class="form-group"><label class="form-label">Country</label><select class="form-select" id="apCountry"><option>Select country...</option>' +
         countries.map(function(c) { return '<option>' + c + '</option>'; }).join('') + '</select></div>' +
         '<div class="form-group"><label class="form-label">Role</label><select class="form-select" id="apRole"><option value="partner">Partner</option><option value="coordinator">Coordinator</option><option value="associated">Associated Partner</option></select></div></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Contact Person</label><input type="text" class="form-input" id="apContact" placeholder="Full name"></div>' +
-        '<div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="apEmail" placeholder="email@university.edu"></div></div>' +
+        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:10px"><i class="fas fa-user"></i> Contact Person 1</div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-input" id="apContact" placeholder="Full name"></div>' +
+        '<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="apEmail" placeholder="email@university.edu"></div></div></div>' +
+        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:10px"><i class="fas fa-user"></i> Contact Person 2 <span style="font-weight:400;color:var(--gray-400)">(optional)</span></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-input" id="apContact2" placeholder="Full name"></div>' +
+        '<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="apEmail2" placeholder="email@university.edu"></div></div></div>' +
         '<div class="form-group"><label class="form-label">Budget Allocation (€)</label><input type="number" class="form-input" id="apBudget" placeholder="50000"></div>',
-        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddPartner()"><i class="fas fa-check"></i> Add Partner</button>');
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddPartner()"><i class="fas fa-check"></i> Add Partner</button>', true);
 }
 
 function handleAddPartner() {
     var name = document.getElementById('apName').value.trim();
     if (!name) { alert('Please enter organization name.'); return; }
     var pid = AppState.currentProjectId;
+    var contact2Name = document.getElementById('apContact2') ? document.getElementById('apContact2').value.trim() : '';
+    var contact2Email = document.getElementById('apEmail2') ? document.getElementById('apEmail2').value.trim() : '';
     var data = {
         name: name,
         country: document.getElementById('apCountry').value,
         role: document.getElementById('apRole').value,
         contact: document.getElementById('apContact').value.trim(),
         email: document.getElementById('apEmail').value.trim(),
+        contact2: contact2Name,
+        email2: contact2Email,
         budget: parseInt(document.getElementById('apBudget').value) || 0,
         spent: 0,
         initials: name.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase()
@@ -152,8 +164,14 @@ function openEditPartnerModal(docId) {
         '<option value="partner"' + (p.role === 'partner' ? ' selected' : '') + '>Partner</option>' +
         '<option value="coordinator"' + (p.role === 'coordinator' ? ' selected' : '') + '>Coordinator</option>' +
         '<option value="associated"' + (p.role === 'associated' ? ' selected' : '') + '>Associated Partner</option></select></div></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Contact Person</label><input type="text" class="form-input" id="epPartContact" value="' + (p.contact || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="epPartEmail" value="' + (p.email || '') + '"></div></div>' +
+        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:10px"><i class="fas fa-user"></i> Contact Person 1</div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-input" id="epPartContact" value="' + (p.contact || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="epPartEmail" value="' + (p.email || '') + '"></div></div></div>' +
+        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:10px"><i class="fas fa-user"></i> Contact Person 2 <span style="font-weight:400;color:var(--gray-400)">(optional)</span></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Full Name</label><input type="text" class="form-input" id="epPartContact2" value="' + (p.contact2 || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="epPartEmail2" value="' + (p.email2 || '') + '"></div></div></div>' +
         '<div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="epPartBudget" value="' + (p.budget || 0) + '"></div>',
         '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
         '<button class="btn btn-primary" onclick="saveEditPartner(\'' + docId + '\')"><i class="fas fa-save"></i> Save</button>');
@@ -168,6 +186,8 @@ function saveEditPartner(docId) {
         role: document.getElementById('epPartRole').value,
         contact: document.getElementById('epPartContact').value.trim(),
         email: document.getElementById('epPartEmail').value.trim(),
+        contact2: document.getElementById('epPartContact2') ? document.getElementById('epPartContact2').value.trim() : '',
+        email2: document.getElementById('epPartEmail2') ? document.getElementById('epPartEmail2').value.trim() : '',
         budget: parseInt(document.getElementById('epPartBudget').value) || 0,
         initials: name.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase()
     };

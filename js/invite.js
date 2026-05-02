@@ -80,16 +80,37 @@ function acceptInvite(inviteId) {
     db.collection('invites').doc(inviteId).get().then(function(doc) {
         if (!doc.exists) return;
         var invite = doc.data();
+        var uid = AppState.currentUser.id;
 
-        // Add current user as partner to the project owner's data
-        // For now, mark invite as accepted
-        doc.ref.update({ status: 'accepted', acceptedAt: new Date().toISOString() });
+        // Mark invite as accepted
+        doc.ref.update({ status: 'accepted', acceptedAt: new Date().toISOString(), acceptedBy: uid });
+
+        // Grant project access to this user
+        db.collection('users').doc(uid).update({
+            projectAccess: firebase.firestore.FieldValue.arrayUnion(invite.projectId)
+        }).then(function() {
+            // Update local state
+            if (!AppState.currentUser.projectAccess) AppState.currentUser.projectAccess = [];
+            AppState.currentUser.projectAccess.push(invite.projectId);
+        });
+
+        // Also store shared project reference so user can load it
+        db.collection('users').doc(uid).collection('sharedProjects').doc(invite.projectId).set({
+            projectId: invite.projectId,
+            projectName: invite.projectName,
+            ownerEmail: invite.invitedByEmail,
+            role: invite.role,
+            joinedAt: new Date().toISOString()
+        });
 
         // Remove banner
         var banner = document.getElementById('invite_' + inviteId);
         if (banner) banner.remove();
 
         showToast('Invitation accepted! You joined ' + invite.projectName, 'success');
+
+        // Reload data to include shared project
+        loadUserData().then(function() { navigateTo('dashboard'); });
     });
 }
 

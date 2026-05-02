@@ -17,7 +17,20 @@ function canUsePremiumFeature() {
     var user = AppState.currentUser;
     if (!user) return false;
     if (user.plan === 'premium') return true;
-    if (!user.trialEnd) return true; // no trial end set, allow
+    // Check if user is an invited member of the current project
+    if (user.projectAccess && AppState.currentProjectId) {
+        if (user.projectAccess.indexOf(AppState.currentProjectId) >= 0) return true;
+    }
+    if (!user.trialEnd) return true;
+    return new Date() <= new Date(user.trialEnd);
+}
+
+// Check if user can create NEW projects (only premium subscribers)
+function canCreateProject() {
+    var user = AppState.currentUser;
+    if (!user) return false;
+    if (user.plan === 'premium') return true;
+    if (!user.trialEnd) return true;
     return new Date() <= new Date(user.trialEnd);
 }
 
@@ -25,6 +38,20 @@ function canUsePremiumFeature() {
 function requirePremium(actionName) {
     if (canUsePremiumFeature()) return true;
     showUpgradeModal(actionName);
+    return false;
+}
+
+// Guard for project creation - stricter than requirePremium
+function requirePremiumForProjectCreation() {
+    if (canCreateProject()) return true;
+    openModal('Subscription Required',
+        '<div style="text-align:center;padding:20px 0">' +
+        '<div style="width:64px;height:64px;border-radius:50%;background:var(--primary-50);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><i class="fas fa-lock" style="font-size:28px;color:var(--primary)"></i></div>' +
+        '<h3 style="font-size:20px;margin-bottom:8px">Create Your Own Projects</h3>' +
+        '<p style="color:var(--gray-500);margin-bottom:16px">You can access projects you\'ve been invited to for free.<br>To create your own projects, subscribe to Premium.</p>' +
+        '<div style="font-size:24px;font-weight:800;color:var(--primary);margin-bottom:20px">€15<span style="font-size:14px;font-weight:500;color:var(--gray-500)">/month</span></div></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Maybe Later</button>' +
+        '<button class="btn btn-primary btn-lg" onclick="closeModal();startCheckout()"><i class="fas fa-credit-card"></i> Subscribe Now</button>');
     return false;
 }
 
