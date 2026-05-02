@@ -37,7 +37,7 @@ function renderPartners(container) {
 }
 
 function openAddPartnerModal() {
-    var countries = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Ireland','Italy','Latvia','Lithuania','Luxembourg','Malta','Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia','Spain','Sweden','Turkey'];
+    var countries = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czech Republic','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Iceland','Ireland','Italy','Latvia','Liechtenstein','Lithuania','Luxembourg','Malta','Netherlands','North Macedonia','Norway','Poland','Portugal','Romania','Serbia','Slovakia','Slovenia','Spain','Sweden','Turkey'];
     openModal('Add Partner Organization',
         '<div class="form-group"><label class="form-label">Organization Name *</label><input type="text" class="form-input" id="apName" placeholder="e.g., University of Helsinki"></div>' +
         '<div class="form-row"><div class="form-group"><label class="form-label">Country</label><select class="form-select" id="apCountry"><option>Select country...</option>' +

@@ -227,17 +227,27 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('en-EU', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(amount || 0);
 }
 
+function parseDate(dateVal) {
+    if (!dateVal) return null;
+    // Handle Firestore Timestamp objects
+    if (dateVal.toDate && typeof dateVal.toDate === 'function') return dateVal.toDate();
+    if (dateVal.seconds) return new Date(dateVal.seconds * 1000);
+    var d = new Date(dateVal);
+    if (isNaN(d.getTime())) return null;
+    return d;
+}
+
 function formatDate(dateStr) {
-    if (!dateStr) return 'N/A';
-    var d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    var d = parseDate(dateStr);
+    if (!d) return 'N/A';
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function getMonthsElapsed(startDate) {
-    if (!startDate) return 0;
-    var start = new Date(startDate);
+    var start = parseDate(startDate);
+    if (!start) return 0;
     var now = new Date();
+    if (start > now) return 0;
     return Math.max(0, Math.floor((now - start) / (1000 * 60 * 60 * 24 * 30)));
 }
 

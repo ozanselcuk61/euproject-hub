@@ -302,7 +302,7 @@ function renderOverview(container) {
         '<div class="stat-card-value" style="font-size:18px">' + (p.programme || 'N/A') + '</div>' +
         '<div class="stat-card-change">' + (p.projectNumber || '') + '</div></div>' +
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Duration</span></div>' +
-        '<div class="stat-card-value">' + elapsed + '/' + (p.duration || 0) + '</div><div class="stat-card-change">months elapsed</div></div>' +
+        '<div class="stat-card-value">' + elapsed + '/' + (p.duration || 0) + '</div><div class="stat-card-change">' + (elapsed === 0 ? (parseDate(p.startDate) && parseDate(p.startDate) > new Date() ? 'starts ' + formatDate(p.startDate) : 'months elapsed') : 'months elapsed') + '</div></div>' +
         '<div class="stat-card"><div class="stat-card-header"><span class="stat-card-label">Progress</span></div>' +
         '<div class="stat-card-value">' + progress + '%</div>' +
         '<div class="progress-bar mt-4"><div class="progress-fill" style="width:' + progress + '%"></div></div></div>' +
@@ -350,23 +350,63 @@ function renderOverview(container) {
 
 function openEditProjectModal() {
     var p = getCurrentProject();
+    var programmeOptions = ['Erasmus+ KA220-HED','Erasmus+ KA220-VET','Erasmus+ KA220-SCH','Erasmus+ KA220-ADU','Erasmus+ KA220-YOU'];
+    var grantOptions = [{v:120000,l:'€120,000'},{v:250000,l:'€250,000'},{v:400000,l:'€400,000'}];
+    var durationOptions = [12, 24, 36];
+
     openModal('Edit Project',
         '<div class="form-group"><label class="form-label">Project Name</label><input type="text" class="form-input" id="epName" value="' + (p.name || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="epDesc" rows="3">' + (p.description || '') + '</textarea></div>' +
-        '<div class="form-group"><label class="form-label">Coordinator</label><input type="text" class="form-input" id="epCoord" value="' + (p.coordinator || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">Country</label><input type="text" class="form-input" id="epCountry" value="' + (p.coordinatorCountry || '') + '"></div>',
+        '<div class="form-row"><div class="form-group"><label class="form-label">Programme</label>' +
+        '<select class="form-select" id="epProgramme">' + programmeOptions.map(function(pr) {
+            return '<option' + (p.programme === pr ? ' selected' : '') + '>' + pr + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Grant Amount (Lump Sum)</label>' +
+        '<select class="form-select" id="epGrant">' + grantOptions.map(function(g) {
+            return '<option value="' + g.v + '"' + (p.totalBudget === g.v ? ' selected' : '') + '>' + g.l + '</option>';
+        }).join('') + '</select></div></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Start Date</label>' +
+        '<input type="date" class="form-input" id="epStart" value="' + (p.startDate || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Duration (months)</label>' +
+        '<select class="form-select" id="epDuration">' + durationOptions.map(function(d) {
+            return '<option' + (p.duration === d ? ' selected' : '') + '>' + d + '</option>';
+        }).join('') + '</select></div></div>' +
+        '<div class="form-group"><label class="form-label">Project Number</label>' +
+        '<input type="text" class="form-input" id="epNumber" value="' + (p.projectNumber || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Description</label>' +
+        '<textarea class="form-textarea" id="epDesc" rows="3">' + (p.description || '') + '</textarea></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Coordinator</label>' +
+        '<input type="text" class="form-input" id="epCoord" value="' + (p.coordinator || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Country</label>' +
+        '<input type="text" class="form-input" id="epCountry" value="' + (p.coordinatorCountry || '') + '"></div></div>',
         '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
-        '<button class="btn btn-primary" onclick="saveEditProject()"><i class="fas fa-save"></i> Save</button>');
+        '<button class="btn btn-primary" onclick="saveEditProject()"><i class="fas fa-save"></i> Save</button>', true);
 }
 
 function saveEditProject() {
     var pid = AppState.currentProjectId;
+    var duration = parseInt(document.getElementById('epDuration').value);
+    var startDate = document.getElementById('epStart').value;
+    var endDate = '';
+    if (startDate) {
+        var end = new Date(startDate);
+        end.setMonth(end.getMonth() + duration);
+        endDate = end.toISOString().split('T')[0];
+    }
+
     var updates = {
         name: document.getElementById('epName').value.trim(),
+        programme: document.getElementById('epProgramme').value,
+        totalBudget: parseInt(document.getElementById('epGrant').value),
+        startDate: startDate,
+        endDate: endDate,
+        duration: duration,
+        projectNumber: document.getElementById('epNumber').value.trim(),
         description: document.getElementById('epDesc').value.trim(),
         coordinator: document.getElementById('epCoord').value.trim(),
         coordinatorCountry: document.getElementById('epCountry').value.trim()
     };
+    updates.lumpSum = { totalGrant: updates.totalBudget, wpAllocations: {} };
+
     Object.assign(Projects[pid], updates);
     saveProjectToFirestore(pid, updates).then(function() {
         showToast('Project updated', 'success');
