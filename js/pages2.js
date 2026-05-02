@@ -129,42 +129,137 @@ function saveEditPartner(docId) {
     });
 }
 
-// ---- WORK PACKAGES ----
+// ---- WORK PACKAGES (Redesigned with Activities) ----
+var expandedWP = null;
+
 function renderWorkPackages(container) {
     var wps = getCurrentWPs();
     var pid = AppState.currentProjectId;
+    var project = getCurrentProject();
     if (!pid) { container.innerHTML = '<div class="empty-state"><p>Select a project first.</p></div>'; return; }
+
+    var totalBudget = wps.reduce(function(s, w) { return s + (w.budget || 0); }, 0);
+    var avgProgress = wps.length > 0 ? Math.round(wps.reduce(function(s, w) { return s + (w.progress || 0); }, 0) / wps.length) : 0;
 
     container.innerHTML =
         '<div class="page-header"><h1>Work Packages</h1><div class="page-header-actions">' +
         '<button class="btn btn-primary" onclick="openAddWPModal()"><i class="fas fa-plus"></i> Add Work Package</button></div></div>' +
-        '<div class="wp-grid">' +
-        (wps.length > 0 ? wps.map(function(wp) {
-            return '<div class="wp-card" onclick="openWPDetail(\'' + (wp._id || '') + '\')">' +
-            '<div class="wp-card-header"><span class="wp-number">' + (wp.number || '') + '</span>' +
-            '<span class="status-badge status-' + (wp.status || 'pending') + '">' + (wp.status || 'pending') + '</span></div>' +
-            '<h3>' + wp.title + '</h3><p>' + (wp.description || '').substring(0, 100) + '</p>' +
-            '<div style="margin:12px 0"><div class="progress-label"><span>Progress</span><span>' + (wp.progress || 0) + '%</span></div>' +
-            '<div class="progress-bar"><div class="progress-fill ' + (wp.progress === 100 ? 'success' : '') + '" style="width:' + (wp.progress || 0) + '%"></div></div></div>' +
-            '<div class="wp-meta"><span><i class="fas fa-user"></i> ' + (wp.lead || 'N/A') + '</span>' +
-            '<span><i class="fas fa-calendar"></i> ' + (wp.start || '') + '-' + (wp.end || '') + '</span>' +
-            '<span><i class="fas fa-euro-sign"></i> ' + formatCurrency(wp.budget) + '</span></div></div>';
-        }).join('') : '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-cubes"></i><h3>No work packages yet</h3><p>Add work packages to organize your project deliverables.</p></div>') +
-        '</div>';
+
+        // Summary stats
+        (wps.length > 0 ? '<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--primary)">' + wps.length + '</div><div style="font-size:11px;color:var(--gray-500)">Work Packages</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--success)">' + avgProgress + '%</div><div style="font-size:11px;color:var(--gray-500)">Avg Progress</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--accent)">' + formatCurrency(totalBudget) + '</div><div style="font-size:11px;color:var(--gray-500)">Total WP Budget</div></div>' +
+        '<div class="stat-card" style="padding:16px;text-align:center"><div style="font-size:24px;font-weight:800;color:var(--warning)">' + wps.filter(function(w) { return w.status === 'completed'; }).length + '/' + wps.length + '</div><div style="font-size:11px;color:var(--gray-500)">Completed</div></div></div>' : '') +
+
+        '<div id="wpListContainer"></div>';
+
+    renderWPList();
 }
 
+function renderWPList() {
+    var wps = getCurrentWPs();
+    var container = document.getElementById('wpListContainer');
+    if (!container) return;
+
+    var colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#14b8a6'];
+
+    if (wps.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-cubes"></i><h3>No work packages yet</h3><p>Add work packages to organize your project deliverables.</p></div>';
+        return;
+    }
+
+    container.innerHTML = wps.map(function(wp, idx) {
+        var color = colors[idx % colors.length];
+        var activities = wp.activities || [];
+        var isExpanded = expandedWP === wp._id;
+        var completedActivities = activities.filter(function(a) { return a.completed; }).length;
+
+        return '<div class="card mb-6" style="border-left:4px solid ' + color + ';overflow:visible">' +
+
+            // WP Header
+            '<div style="padding:20px 24px;cursor:pointer;display:flex;align-items:center;gap:16px" onclick="toggleWPExpand(\'' + (wp._id || '') + '\')">' +
+            '<div style="width:48px;height:48px;border-radius:var(--radius);background:' + color + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;flex-shrink:0">' + (wp.number || '').replace('WP', '') + '</div>' +
+            '<div style="flex:1">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+            '<span style="font-size:12px;font-weight:700;color:' + color + '">' + (wp.number || '') + '</span>' +
+            '<span class="status-badge status-' + (wp.status || 'pending') + '">' + (wp.status || 'pending') + '</span>' +
+            '</div>' +
+            '<div style="font-size:16px;font-weight:700;color:var(--gray-900)">' + wp.title + '</div>' +
+            '<div style="font-size:12px;color:var(--gray-500);margin-top:4px">' +
+            '<span><i class="fas fa-user"></i> ' + (wp.lead || 'N/A') + '</span>' +
+            '<span style="margin-left:12px"><i class="fas fa-calendar"></i> ' + (wp.start || 'M1') + ' — ' + (wp.end || 'M24') + '</span>' +
+            '<span style="margin-left:12px"><i class="fas fa-euro-sign"></i> ' + formatCurrency(wp.budget) + '</span>' +
+            '<span style="margin-left:12px"><i class="fas fa-list-check"></i> ' + completedActivities + '/' + activities.length + ' activities</span>' +
+            '</div></div>' +
+
+            // Progress + Actions
+            '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">' +
+            '<div style="width:80px"><div class="progress-bar" style="height:8px"><div class="progress-fill ' + (wp.progress === 100 ? 'success' : '') + '" style="width:' + (wp.progress || 0) + '%"></div></div>' +
+            '<div style="font-size:11px;text-align:center;margin-top:2px;font-weight:600;color:' + color + '">' + (wp.progress || 0) + '%</div></div>' +
+            '<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openEditWPModal(\'' + (wp._id || '') + '\')" title="Edit"><i class="fas fa-edit"></i></button>' +
+            '<button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="event.stopPropagation();deleteWP(\'' + (wp._id || '') + '\')" title="Delete"><i class="fas fa-trash"></i></button>' +
+            '<i class="fas fa-chevron-' + (isExpanded ? 'up' : 'down') + '" style="color:var(--gray-400)"></i>' +
+            '</div></div>' +
+
+            // Expanded content with activities
+            (isExpanded ? '<div style="border-top:1px solid var(--gray-200);padding:20px 24px;background:var(--gray-50)">' +
+
+            // Description
+            (wp.description ? '<p style="color:var(--gray-600);line-height:1.7;margin-bottom:20px;font-size:14px">' + wp.description + '</p>' : '') +
+
+            // Activities section
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+            '<h3 style="font-size:15px;font-weight:700;color:var(--gray-800)"><i class="fas fa-list-ol" style="color:' + color + '"></i> Activities</h3>' +
+            '<button class="btn btn-sm btn-primary" onclick="openAddActivityModal(\'' + (wp._id || '') + '\')"><i class="fas fa-plus"></i> Add Activity</button></div>' +
+
+            (activities.length > 0 ? activities.map(function(act, aIdx) {
+                return '<div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px;margin-bottom:10px;border-left:3px solid ' + (act.completed ? 'var(--success)' : color) + '">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+                '<div style="flex:1">' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+                '<span style="background:' + color + ';color:#fff;padding:2px 8px;border-radius:50px;font-size:11px;font-weight:700">A' + (aIdx + 1) + '</span>' +
+                '<span style="font-size:15px;font-weight:600;color:var(--gray-800);' + (act.completed ? 'text-decoration:line-through;opacity:0.6' : '') + '">' + act.title + '</span>' +
+                (act.completed ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '') +
+                '</div>' +
+                (act.objective ? '<div style="font-size:13px;color:var(--gray-600);margin-bottom:4px"><strong>Objective:</strong> ' + act.objective + '</div>' : '') +
+                (act.content ? '<div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">' + act.content + '</div>' : '') +
+                '<div style="display:flex;gap:12px;font-size:12px;color:var(--gray-400);margin-top:6px">' +
+                (act.responsible ? '<span><i class="fas fa-user"></i> ' + act.responsible + '</span>' : '') +
+                (act.deadline ? '<span><i class="fas fa-calendar"></i> ' + formatDate(act.deadline) + '</span>' : '') +
+                '</div></div>' +
+                '<div style="display:flex;gap:4px;flex-shrink:0">' +
+                '<button class="btn btn-sm btn-ghost" onclick="toggleActivityComplete(\'' + (wp._id || '') + '\',' + aIdx + ')" title="' + (act.completed ? 'Mark incomplete' : 'Mark complete') + '"><i class="fas ' + (act.completed ? 'fa-undo' : 'fa-check') + '"></i></button>' +
+                '<button class="btn btn-sm btn-ghost" onclick="openEditActivityModal(\'' + (wp._id || '') + '\',' + aIdx + ')"><i class="fas fa-edit"></i></button>' +
+                '<button class="btn btn-sm btn-ghost" style="color:var(--danger)" onclick="deleteActivity(\'' + (wp._id || '') + '\',' + aIdx + ')"><i class="fas fa-trash"></i></button>' +
+                '</div></div></div>';
+            }).join('') : '<div style="text-align:center;padding:20px;color:var(--gray-400);background:#fff;border-radius:var(--radius);border:1px dashed var(--gray-300)"><i class="fas fa-plus-circle" style="font-size:20px;margin-bottom:8px;display:block"></i>No activities yet. Click "Add Activity" to create one.</div>') +
+
+            '</div>' : '') +
+            '</div>';
+    }).join('');
+}
+
+function toggleWPExpand(wpId) {
+    expandedWP = expandedWP === wpId ? null : wpId;
+    renderWPList();
+}
+
+// ---- WP CRUD ----
 function openAddWPModal() {
     var partners = getCurrentPartners();
+    var wps = getCurrentWPs();
+    var nextNum = 'WP' + (wps.length + 1);
     var leadOptions = partners.length > 0 ? partners.map(function(p) { return '<option>' + p.name + '</option>'; }).join('') : '<option>No partners added</option>';
     openModal('Add Work Package',
-        '<div class="form-row"><div class="form-group"><label class="form-label">WP Number *</label><input type="text" class="form-input" id="awpNum" placeholder="e.g., WP1"></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">WP Number *</label><input type="text" class="form-input" id="awpNum" value="' + nextNum + '"></div>' +
         '<div class="form-group"><label class="form-label">Lead Partner</label><select class="form-select" id="awpLead">' + leadOptions + '</select></div></div>' +
-        '<div class="form-group"><label class="form-label">Title *</label><input type="text" class="form-input" id="awpTitle" placeholder="Work package title"></div>' +
-        '<div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="awpDesc" rows="3"></textarea></div>' +
+        '<div class="form-group"><label class="form-label">Title *</label><input type="text" class="form-input" id="awpTitle" placeholder="e.g., Research & Needs Analysis"></div>' +
+        '<div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="awpDesc" rows="3" placeholder="Describe the objectives and scope of this work package..."></textarea></div>' +
         '<div class="form-row"><div class="form-group"><label class="form-label">Start (Month)</label><input type="text" class="form-input" id="awpStart" placeholder="M1"></div>' +
         '<div class="form-group"><label class="form-label">End (Month)</label><input type="text" class="form-input" id="awpEnd" placeholder="M24"></div></div>' +
         '<div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="awpBudget" placeholder="40000"></div>',
-        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddWP()"><i class="fas fa-check"></i> Create WP</button>');
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="handleAddWP()"><i class="fas fa-check"></i> Create WP</button>', true);
 }
 
 function handleAddWP() {
@@ -179,34 +274,33 @@ function handleAddWP() {
         start: document.getElementById('awpStart').value.trim() || 'M1',
         end: document.getElementById('awpEnd').value.trim() || 'M24',
         budget: parseInt(document.getElementById('awpBudget').value) || 0,
-        status: 'pending', progress: 0, deliverables: []
+        status: 'pending', progress: 0, activities: []
     };
     if (!WorkPackages[pid]) WorkPackages[pid] = [];
     addToSubCollection(pid, 'workpackages', data).then(function(result) {
         data._id = result.id;
         WorkPackages[pid].push(data);
         addActivity(pid, 'created work package', number + ': ' + title);
-        showToast('Work package "' + number + '" created!', 'success');
+        showToast(number + ' created!', 'success');
         closeModal();
+        expandedWP = data._id;
         navigateTo('workpackages');
     });
 }
 
-function openWPDetail(docId) {
+function openEditWPModal(docId) {
     var wp = getCurrentWPs().find(function(w) { return w._id === docId; });
     if (!wp) return;
     var partners = getCurrentPartners();
     var leadOptions = partners.length > 0 ? partners.map(function(p) { return '<option' + (wp.lead === p.name ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') : '<option>' + (wp.lead || 'N/A') + '</option>';
 
-    openModal(wp.number + ': ' + wp.title,
-        '<div class="form-row"><div class="form-group"><label class="form-label">WP Number</label>' +
-        '<input type="text" class="form-input" id="ewpNum" value="' + (wp.number || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">Lead Partner</label>' +
-        '<select class="form-select" id="ewpLead">' + leadOptions + '</select></div></div>' +
+    openModal('Edit ' + wp.number + ': ' + wp.title,
+        '<div class="form-row"><div class="form-group"><label class="form-label">WP Number</label><input type="text" class="form-input" id="ewpNum" value="' + (wp.number || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Lead Partner</label><select class="form-select" id="ewpLead">' + leadOptions + '</select></div></div>' +
         '<div class="form-group"><label class="form-label">Title</label><input type="text" class="form-input" id="ewpTitle" value="' + (wp.title || '') + '"></div>' +
         '<div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="ewpDesc" rows="3">' + (wp.description || '') + '</textarea></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">Start (Month)</label><input type="text" class="form-input" id="ewpStart" value="' + (wp.start || '') + '"></div>' +
-        '<div class="form-group"><label class="form-label">End (Month)</label><input type="text" class="form-input" id="ewpEnd" value="' + (wp.end || '') + '"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">Start</label><input type="text" class="form-input" id="ewpStart" value="' + (wp.start || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">End</label><input type="text" class="form-input" id="ewpEnd" value="' + (wp.end || '') + '"></div></div>' +
         '<div class="form-row"><div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="ewpBudget" value="' + (wp.budget || 0) + '"></div>' +
         '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="ewpStatus"><option ' + (wp.status === 'pending' ? 'selected' : '') + '>pending</option><option ' + (wp.status === 'active' ? 'selected' : '') + '>active</option><option ' + (wp.status === 'completed' ? 'selected' : '') + '>completed</option></select></div></div>' +
         '<div class="form-group"><label class="form-label">Progress: <strong id="ewpProgVal">' + (wp.progress || 0) + '%</strong></label>' +
@@ -239,7 +333,7 @@ function saveWPUpdate(docId) {
 }
 
 function deleteWP(docId) {
-    if (!confirm('Delete this work package?')) return;
+    if (!confirm('Delete this work package and all its activities?')) return;
     var pid = AppState.currentProjectId;
     deleteFromSubCollection(pid, 'workpackages', docId).then(function() {
         WorkPackages[pid] = WorkPackages[pid].filter(function(w) { return w._id !== docId; });
@@ -249,6 +343,114 @@ function deleteWP(docId) {
     });
 }
 
+// ---- ACTIVITIES within WP ----
+function openAddActivityModal(wpId) {
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp) return;
+    var activities = wp.activities || [];
+    var nextNum = 'A' + (activities.length + 1);
+    var partners = getCurrentPartners();
+    var respOptions = '<option value="">Select responsible...</option>' + partners.map(function(p) { return '<option>' + (p.contact || p.name) + '</option>'; }).join('');
+
+    openModal('Add Activity to ' + wp.number,
+        '<div class="form-row"><div class="form-group"><label class="form-label">Activity Number</label><input type="text" class="form-input" id="actNum" value="' + nextNum + '" readonly></div>' +
+        '<div class="form-group"><label class="form-label">Responsible Partner</label><select class="form-select" id="actResp">' + respOptions + '</select></div></div>' +
+        '<div class="form-group"><label class="form-label">Activity Title *</label><input type="text" class="form-input" id="actTitle" placeholder="e.g., Desk research on NEETs phenomenon"></div>' +
+        '<div class="form-group"><label class="form-label">Objective</label><textarea class="form-textarea" id="actObj" rows="2" placeholder="What is the purpose of this activity?"></textarea></div>' +
+        '<div class="form-group"><label class="form-label">Content / Description</label><textarea class="form-textarea" id="actContent" rows="3" placeholder="Detailed description of the activity..."></textarea></div>' +
+        '<div class="form-group"><label class="form-label">Deadline</label><input type="date" class="form-input" id="actDeadline"></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="handleAddActivity(\'' + wpId + '\')"><i class="fas fa-check"></i> Add Activity</button>', true);
+}
+
+function handleAddActivity(wpId) {
+    var title = document.getElementById('actTitle').value.trim();
+    if (!title) { alert('Please enter activity title.'); return; }
+    var pid = AppState.currentProjectId;
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp) return;
+
+    var activity = {
+        number: document.getElementById('actNum').value,
+        title: title,
+        objective: document.getElementById('actObj').value.trim(),
+        content: document.getElementById('actContent').value.trim(),
+        responsible: document.getElementById('actResp').value,
+        deadline: document.getElementById('actDeadline').value,
+        completed: false
+    };
+
+    if (!wp.activities) wp.activities = [];
+    wp.activities.push(activity);
+
+    updateInSubCollection(pid, 'workpackages', wpId, { activities: wp.activities }).then(function() {
+        addActivity(pid, 'added activity to ' + wp.number, activity.title);
+        showToast('Activity added!', 'success');
+        closeModal();
+        expandedWP = wpId;
+        renderWPList();
+    });
+}
+
+function openEditActivityModal(wpId, actIdx) {
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp || !wp.activities || !wp.activities[actIdx]) return;
+    var act = wp.activities[actIdx];
+    var partners = getCurrentPartners();
+    var respOptions = '<option value="">Select responsible...</option>' + partners.map(function(p) { return '<option' + (act.responsible === (p.contact || p.name) ? ' selected' : '') + '>' + (p.contact || p.name) + '</option>'; }).join('');
+
+    openModal('Edit Activity ' + (act.number || 'A' + (actIdx + 1)),
+        '<div class="form-group"><label class="form-label">Activity Title</label><input type="text" class="form-input" id="eactTitle" value="' + (act.title || '') + '"></div>' +
+        '<div class="form-group"><label class="form-label">Responsible</label><select class="form-select" id="eactResp">' + respOptions + '</select></div>' +
+        '<div class="form-group"><label class="form-label">Objective</label><textarea class="form-textarea" id="eactObj" rows="2">' + (act.objective || '') + '</textarea></div>' +
+        '<div class="form-group"><label class="form-label">Content / Description</label><textarea class="form-textarea" id="eactContent" rows="3">' + (act.content || '') + '</textarea></div>' +
+        '<div class="form-group"><label class="form-label">Deadline</label><input type="date" class="form-input" id="eactDeadline" value="' + (act.deadline || '') + '"></div>',
+        '<button class="btn btn-danger" onclick="deleteActivity(\'' + wpId + '\',' + actIdx + ');closeModal()"><i class="fas fa-trash"></i> Delete</button>' +
+        '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="saveEditActivity(\'' + wpId + '\',' + actIdx + ')"><i class="fas fa-save"></i> Save</button>', true);
+}
+
+function saveEditActivity(wpId, actIdx) {
+    var pid = AppState.currentProjectId;
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp || !wp.activities || !wp.activities[actIdx]) return;
+
+    wp.activities[actIdx].title = document.getElementById('eactTitle').value.trim();
+    wp.activities[actIdx].responsible = document.getElementById('eactResp').value;
+    wp.activities[actIdx].objective = document.getElementById('eactObj').value.trim();
+    wp.activities[actIdx].content = document.getElementById('eactContent').value.trim();
+    wp.activities[actIdx].deadline = document.getElementById('eactDeadline').value;
+
+    updateInSubCollection(pid, 'workpackages', wpId, { activities: wp.activities }).then(function() {
+        showToast('Activity updated', 'success');
+        closeModal();
+        renderWPList();
+    });
+}
+
+function toggleActivityComplete(wpId, actIdx) {
+    var pid = AppState.currentProjectId;
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp || !wp.activities || !wp.activities[actIdx]) return;
+
+    wp.activities[actIdx].completed = !wp.activities[actIdx].completed;
+    updateInSubCollection(pid, 'workpackages', wpId, { activities: wp.activities }).then(function() {
+        renderWPList();
+    });
+}
+
+function deleteActivity(wpId, actIdx) {
+    if (!confirm('Delete this activity?')) return;
+    var pid = AppState.currentProjectId;
+    var wp = getCurrentWPs().find(function(w) { return w._id === wpId; });
+    if (!wp || !wp.activities) return;
+
+    wp.activities.splice(actIdx, 1);
+    updateInSubCollection(pid, 'workpackages', wpId, { activities: wp.activities }).then(function() {
+        showToast('Activity deleted', 'info');
+        renderWPList();
+    });
+}
 // ---- TASKS (Redesigned) ----
 var taskView = 'board';
 var taskFilter = { wp: '', assignee: '', priority: '' };
