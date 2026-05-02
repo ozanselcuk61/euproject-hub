@@ -238,7 +238,8 @@ function openNewProjectModal() {
         '<div class="form-row"><div class="form-group"><label class="form-label">Start Date</label>' +
         '<input type="date" class="form-input" id="npStart"></div>' +
         '<div class="form-group"><label class="form-label">Duration (months)</label>' +
-        '<select class="form-select" id="npDuration"><option>12</option><option selected>24</option><option>36</option></select></div></div>' +
+        '<select class="form-select" id="npDuration" onchange="toggleCustomDuration(\'np\')"><option>12</option><option selected>24</option><option>36</option><option value="custom">Custom</option></select>' +
+        '<input type="number" class="form-input mt-4" id="npDurationCustom" placeholder="Enter months (e.g. 18)" style="display:none" min="1" max="60"></div></div>' +
         '<div class="form-group"><label class="form-label">Project Number</label>' +
         '<input type="text" class="form-input" id="npNumber" placeholder="e.g., 2025-1-PL01-KA220-HED-000123456"></div>' +
         '<div class="form-group"><label class="form-label">Description</label>' +
@@ -262,6 +263,14 @@ function updateGrantOptions() {
     toggleCustomGrant();
 }
 
+function toggleCustomDuration(prefix) {
+    var sel = document.getElementById(prefix + 'Duration');
+    var field = document.getElementById(prefix + 'DurationCustom');
+    if (!sel || !field) return;
+    field.style.display = sel.value === 'custom' ? 'block' : 'none';
+    if (sel.value === 'custom') field.focus();
+}
+
 function toggleCustomGrant() {
     var grant = document.getElementById('npGrant') || document.getElementById('epGrant');
     var customField = document.getElementById('npGrantCustom') || document.getElementById('epGrantCustom');
@@ -281,7 +290,8 @@ function handleCreateProject() {
     var grantVal = document.getElementById('npGrant').value;
     var totalBudget = grantVal === 'custom' ? parseInt(document.getElementById('npGrantCustom').value) || 0 : parseInt(grantVal);
     var startDate = document.getElementById('npStart').value || new Date().toISOString().split('T')[0];
-    var duration = parseInt(document.getElementById('npDuration').value);
+    var durVal = document.getElementById('npDuration').value;
+    var duration = durVal === 'custom' ? parseInt(document.getElementById('npDurationCustom').value) || 24 : parseInt(durVal);
     var projectNumber = document.getElementById('npNumber').value.trim();
     var description = document.getElementById('npDesc').value.trim();
 
@@ -415,9 +425,10 @@ function openEditProjectModal() {
         '<div class="form-row"><div class="form-group"><label class="form-label">Start Date</label>' +
         '<input type="date" class="form-input" id="epStart" value="' + (p.startDate || '') + '"></div>' +
         '<div class="form-group"><label class="form-label">Duration (months)</label>' +
-        '<select class="form-select" id="epDuration">' + durationOptions.map(function(d) {
+        '<select class="form-select" id="epDuration" onchange="toggleCustomDuration(\'ep\')">' + durationOptions.map(function(d) {
             return '<option' + (p.duration === d ? ' selected' : '') + '>' + d + '</option>';
-        }).join('') + '</select></div></div>' +
+        }).join('') + '<option value="custom"' + (durationOptions.indexOf(p.duration) === -1 ? ' selected' : '') + '>Custom</option></select>' +
+        '<input type="number" class="form-input mt-4" id="epDurationCustom" value="' + (durationOptions.indexOf(p.duration) === -1 ? p.duration : '') + '" placeholder="Enter months" style="display:' + (durationOptions.indexOf(p.duration) === -1 ? 'block' : 'none') + '" min="1" max="60"></div></div>' +
         '<div class="form-group"><label class="form-label">Project Number</label>' +
         '<input type="text" class="form-input" id="epNumber" value="' + (p.projectNumber || '') + '"></div>' +
         '<div class="form-group"><label class="form-label">Description</label>' +
@@ -432,7 +443,8 @@ function openEditProjectModal() {
 
 function saveEditProject() {
     var pid = AppState.currentProjectId;
-    var duration = parseInt(document.getElementById('epDuration').value);
+    var durVal = document.getElementById('epDuration').value;
+    var duration = durVal === 'custom' ? parseInt(document.getElementById('epDurationCustom').value) || 24 : parseInt(durVal);
     var startDate = document.getElementById('epStart').value;
     var endDate = '';
     if (startDate) {
