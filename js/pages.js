@@ -217,6 +217,17 @@ function unarchiveProject(pid) {
 // ---- CREATE PROJECT ----
 function openNewProjectModal() {
     if (!requirePremiumForProjectCreation()) return;
+    if (typeof canCreateMoreProjects === 'function' && !canCreateMoreProjects()) {
+        var user = AppState.currentUser;
+        var planName = user.plan || 'trial';
+        openModal('Project Limit Reached',
+            '<div style="text-align:center;padding:20px"><i class="fas fa-folder-open" style="font-size:48px;color:var(--warning);margin-bottom:16px"></i>' +
+            '<h3>You\'ve reached your project limit</h3>' +
+            '<p style="color:var(--gray-500)">Your <strong>' + planName + '</strong> plan allows ' + (planName === 'standard' ? '1 project' : '5 projects') + '. Upgrade to create more.</p></div>',
+            '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>' +
+            '<button class="btn btn-primary" onclick="closeModal();navigateTo(\'settings\')"><i class="fas fa-arrow-up"></i> Upgrade Plan</button>');
+        return;
+    }
     openModal('Create New Project',
         '<div class="form-group"><label class="form-label">Project Name *</label>' +
         '<input type="text" class="form-input" id="npName" placeholder="e.g., DigiSkills4EU"></div>' +

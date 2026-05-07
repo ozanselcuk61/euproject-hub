@@ -12,12 +12,16 @@ function initStripe() {
     }
 }
 
+// Check if user has any paid plan
+function hasPaidPlan(user) {
+    return user && (user.plan === 'standard' || user.plan === 'plus' || user.plan === 'premium');
+}
+
 // Check if user can perform premium actions
 function canUsePremiumFeature() {
     var user = AppState.currentUser;
     if (!user) return false;
-    if (user.plan === 'premium') return true;
-    // Check if user is an invited member of the current project
+    if (hasPaidPlan(user)) return true;
     if (user.projectAccess && AppState.currentProjectId) {
         if (user.projectAccess.indexOf(AppState.currentProjectId) >= 0) return true;
     }
@@ -25,13 +29,26 @@ function canUsePremiumFeature() {
     return new Date() <= new Date(user.trialEnd);
 }
 
-// Check if user can create NEW projects (only premium subscribers)
+// Check if user can create NEW projects
 function canCreateProject() {
     var user = AppState.currentUser;
     if (!user) return false;
-    if (user.plan === 'premium') return true;
+    if (hasPaidPlan(user)) return true;
     if (!user.trialEnd) return true;
     return new Date() <= new Date(user.trialEnd);
+}
+
+// Check project limits per plan
+function canCreateMoreProjects() {
+    var user = AppState.currentUser;
+    if (!user) return false;
+    var ownedCount = Object.values(Projects).filter(function(p) { return p.ownerId === user.id && p.status !== 'archived'; }).length;
+    if (user.plan === 'standard' && ownedCount >= 1) return false;
+    if (user.plan === 'plus' && ownedCount >= 5) return false;
+    if (user.plan === 'premium') return true;
+    // Trial users
+    if (!user.trialEnd || new Date() <= new Date(user.trialEnd)) return true;
+    return false;
 }
 
 // Guard function - call before any add/edit/delete action
@@ -56,21 +73,19 @@ function requirePremiumForProjectCreation() {
 }
 
 function showUpgradeModal(actionName) {
-    openModal('Upgrade to Premium',
-        '<div style="text-align:center;padding:20px 0">' +
+    openModal('Choose a Plan',
+        '<div style="text-align:center;padding:10px 0 20px">' +
         '<div style="width:64px;height:64px;border-radius:50%;background:var(--warning-light);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><i class="fas fa-crown" style="font-size:28px;color:var(--warning)"></i></div>' +
-        '<h3 style="font-size:20px;margin-bottom:8px">Your Free Trial Has Expired</h3>' +
-        '<p style="color:var(--gray-500);margin-bottom:24px">To ' + (actionName || 'use this feature') + ', upgrade to Premium for just <strong>€15/month</strong>.</p>' +
-        '<div style="background:var(--gray-50);border-radius:var(--radius);padding:16px;text-align:left;margin-bottom:20px">' +
-        '<div style="font-size:13px;color:var(--gray-600);line-height:2">' +
-        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Unlimited projects & partners</div>' +
-        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Full edit/delete capabilities</div>' +
-        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> AI report generation</div>' +
-        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> File uploads & document management</div>' +
-        '<div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> PDF & CSV export</div>' +
-        '</div></div></div>',
-        '<button class="btn btn-secondary" onclick="closeModal()">Maybe Later</button>' +
-        '<button class="btn btn-primary btn-lg" onclick="closeModal();startCheckout()"><i class="fas fa-credit-card"></i> Upgrade Now — €15/mo</button>');
+        '<h3 style="font-size:20px;margin-bottom:8px">Upgrade to Continue</h3>' +
+        '<p style="color:var(--gray-500);margin-bottom:20px">To ' + (actionName || 'use this feature') + ', choose a plan. <strong>First month free!</strong></p></div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px">' +
+        '<div style="border:2px solid var(--gray-200);border-radius:var(--radius);padding:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="closeModal();startCheckout(\'standard\')" onmouseover="this.style.borderColor=\'var(--primary)\'" onmouseout="this.style.borderColor=\'var(--gray-200)\'">' +
+        '<div><strong>Standard</strong><div style="font-size:12px;color:var(--gray-500)">1 project · Unlimited members · 5 GB</div></div><span style="font-weight:800;color:var(--primary);font-size:18px">€5<span style="font-size:12px;font-weight:500">/mo</span></span></div>' +
+        '<div style="border:2px solid var(--primary);border-radius:var(--radius);padding:14px;cursor:pointer;background:var(--primary-50);display:flex;justify-content:space-between;align-items:center" onclick="closeModal();startCheckout(\'plus\')">' +
+        '<div><strong>Plus</strong> <span style="background:var(--primary);color:#fff;padding:1px 6px;border-radius:50px;font-size:10px">POPULAR</span><div style="font-size:12px;color:var(--gray-500)">5 projects · Unlimited members · 10 GB</div></div><span style="font-weight:800;color:var(--primary);font-size:18px">€15<span style="font-size:12px;font-weight:500">/mo</span></span></div>' +
+        '<div style="border:2px solid var(--gray-200);border-radius:var(--radius);padding:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="closeModal();startCheckout(\'premium\')" onmouseover="this.style.borderColor=\'var(--primary)\'" onmouseout="this.style.borderColor=\'var(--gray-200)\'">' +
+        '<div><strong>Premium</strong><div style="font-size:12px;color:var(--gray-500)">Unlimited projects · Unlimited members · 20 GB</div></div><span style="font-weight:800;color:var(--primary);font-size:18px">€30<span style="font-size:12px;font-weight:500">/mo</span></span></div></div>',
+        '<button class="btn btn-secondary" onclick="closeModal()">Maybe Later</button>');
 }
 
 // Check if user's trial has expired
@@ -92,7 +107,7 @@ function getTrialDaysRemaining() {
 }
 
 // Redirect to Stripe Checkout
-function startCheckout() {
+function startCheckout(planType) {
     if (!stripe) {
         showToast('Payment system loading, please try again.', 'error');
         return;
@@ -104,6 +119,15 @@ function startCheckout() {
         return;
     }
 
+    // Map plan to Stripe price ID (you'll need to create these in Stripe)
+    var planPriceMap = {
+        'standard': STRIPE_PRICE_ID, // Update with actual Stripe price IDs
+        'plus': STRIPE_PRICE_ID,
+        'premium': STRIPE_PRICE_ID
+    };
+    var selectedPlan = planType || 'plus';
+    var selectedPriceId = planPriceMap[selectedPlan] || STRIPE_PRICE_ID;
+
     // Create checkout session via Cloud Function
     var checkoutUrl = 'https://us-central1-euproject-hub.cloudfunctions.net/createCheckoutSession';
 
@@ -111,10 +135,11 @@ function startCheckout() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            priceId: STRIPE_PRICE_ID,
+            priceId: selectedPriceId,
+            planType: selectedPlan,
             userId: user.id,
             email: user.email,
-            successUrl: window.location.origin + window.location.pathname + '#page-settings',
+            successUrl: window.location.origin + window.location.pathname + '?payment=success&plan=' + selectedPlan + '#page-settings',
             cancelUrl: window.location.origin + window.location.pathname + '#page-settings'
         })
     })
@@ -162,15 +187,16 @@ function openStripePaymentLink() {
 function handlePaymentSuccess() {
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success') {
-        // Update user plan in Firestore
+        var selectedPlan = urlParams.get('plan') || 'plus';
         var user = AppState.currentUser;
         if (user) {
             db.collection('users').doc(user.id).update({
-                plan: 'premium',
+                plan: selectedPlan,
                 premiumSince: new Date().toISOString()
             }).then(function() {
-                AppState.currentUser.plan = 'premium';
-                showToast('Welcome to Premium! All features unlocked.', 'success');
+                AppState.currentUser.plan = selectedPlan;
+                var planNames = { standard: 'Standard', plus: 'Plus', premium: 'Premium' };
+                showToast('Welcome to ' + (planNames[selectedPlan] || 'Premium') + '! All features unlocked.', 'success');
             });
         }
         // Clean URL

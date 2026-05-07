@@ -688,8 +688,8 @@ function renderSettings(container) {
                     <div class="card-body" style="text-align:center">
                         ${isPremium ? `
                         <div style="font-size:12px;font-weight:600;color:var(--success);text-transform:uppercase;margin-bottom:8px">Current Plan</div>
-                        <div style="font-size:28px;font-weight:800;color:var(--primary);margin-bottom:4px">Premium</div>
-                        <div style="font-size:16px;color:var(--gray-600);margin-bottom:16px">€15 / month</div>
+                        <div style="font-size:28px;font-weight:800;color:var(--primary);margin-bottom:4px">${user.plan === 'premium' ? 'Premium' : user.plan === 'plus' ? 'Plus' : 'Standard'}</div>
+                        <div style="font-size:16px;color:var(--gray-600);margin-bottom:16px">${user.plan === 'premium' ? '€30' : user.plan === 'plus' ? '€15' : '€5'} / month</div>
                         <div style="padding:12px;background:var(--success-light);border-radius:var(--radius);margin-bottom:16px">
                             <div style="font-size:13px;color:#065f46"><i class="fas fa-check-circle"></i> All features unlocked</div>
                         </div>
@@ -701,21 +701,21 @@ function renderSettings(container) {
                         <div style="padding:16px;background:${daysLeft > 0 ? 'var(--warning-light)' : 'var(--danger-light)'};border-radius:var(--radius);margin-bottom:16px">
                             <div style="font-size:13px;color:${daysLeft > 0 ? '#92400e' : '#991b1b'}">
                                 <i class="fas ${daysLeft > 0 ? 'fa-clock' : 'fa-exclamation-triangle'}"></i>
-                                ${daysLeft > 0 ? 'Your trial ends in ' + daysLeft + ' days' : 'Your trial has expired. Upgrade to continue.'}
+                                ${daysLeft > 0 ? 'Your free trial ends in ' + daysLeft + ' days' : 'Your free trial has expired. Choose a plan to continue.'}
                             </div>
                         </div>
-                        <div style="background:var(--gray-50);border-radius:var(--radius);padding:20px;margin-bottom:16px;text-align:left">
-                            <div style="font-size:16px;font-weight:700;margin-bottom:12px;text-align:center">Premium — €15/month</div>
-                            <div style="font-size:13px;color:var(--gray-600);line-height:2">
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Unlimited projects</div>
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Unlimited partners</div>
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> 25 GB storage</div>
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Unlimited AI reports</div>
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> PDF & DOCX export</div>
-                                <div><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i> Priority support</div>
-                            </div>
+                        <div style="display:flex;flex-direction:column;gap:12px;text-align:left">
+                            <div style="border:2px solid var(--gray-200);border-radius:var(--radius);padding:16px;cursor:pointer" onclick="startCheckout('standard')" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--gray-200)'">
+                                <div style="display:flex;justify-content:space-between;align-items:center"><strong>Standard</strong><span style="font-weight:800;color:var(--primary)">€5/mo</span></div>
+                                <div style="font-size:12px;color:var(--gray-500);margin-top:4px">1 project · Unlimited members · 5 GB</div></div>
+                            <div style="border:2px solid var(--primary);border-radius:var(--radius);padding:16px;cursor:pointer;background:var(--primary-50)" onclick="startCheckout('plus')">
+                                <div style="display:flex;justify-content:space-between;align-items:center"><strong>Plus <span style="background:var(--primary);color:#fff;padding:1px 6px;border-radius:50px;font-size:10px;margin-left:4px">POPULAR</span></strong><span style="font-weight:800;color:var(--primary)">€15/mo</span></div>
+                                <div style="font-size:12px;color:var(--gray-500);margin-top:4px">5 projects · Unlimited members · 10 GB</div></div>
+                            <div style="border:2px solid var(--gray-200);border-radius:var(--radius);padding:16px;cursor:pointer" onclick="startCheckout('premium')" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--gray-200)'">
+                                <div style="display:flex;justify-content:space-between;align-items:center"><strong>Premium</strong><span style="font-weight:800;color:var(--primary)">€30/mo</span></div>
+                                <div style="font-size:12px;color:var(--gray-500);margin-top:4px">Unlimited projects · Unlimited members · 20 GB</div></div>
                         </div>
-                        <button class="btn btn-primary btn-block btn-lg" onclick="startCheckout()"><i class="fas fa-credit-card"></i> Upgrade to Premium</button>
+                        <p style="font-size:12px;color:var(--gray-400);margin-top:12px;text-align:center"><i class="fas fa-gift"></i> First month free on all plans</p>
                         `}
                     </div>
                 </div>
